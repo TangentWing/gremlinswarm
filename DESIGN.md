@@ -175,7 +175,13 @@ streaming input.
 - The runtime caps concurrency at min(16, CPUs−2) — 6 on an 8-core machine — on top of
   `budget.max_concurrent`.
 - All writes into the investigation directory go through `board.py` (`write` for free-form
-  files), so one allow rule (`Bash(python3 …/board.py:*)`) pre-approves agent bookkeeping.
+  files), so one allow rule (`Bash(<inv>/bin/board.py:*)`) pre-approves agent bookkeeping.
+- The board CLI is handed to agents as a single executable path (shebang), not
+  `python3 <path>`: smoke test 1 showed 11/12 agents storing the two-word form in a shell
+  variable, which zsh does not word-split.
+- Every agent's first action is `board.py brief --role R [--lane L] [--task T] [--round N]`,
+  which prints protocol + role prompt + lane.md + manifest essentials + the state that role
+  needs in one call (smoke test 1: agents spent 2–5 opening calls reading these).
 - Plan saves merge: resubmitted ids keep history (attempt increments when requeued from
   failed/partial/blocked/needs_redo/orphaned), queued tasks left out are marked `dropped`,
   terminal tasks are carried over, and in-flight ids are refused.
