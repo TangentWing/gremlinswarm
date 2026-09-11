@@ -149,6 +149,7 @@ everything else goes to files.
 | Orphaned `running` tasks (host crash) | Scope agent sees `running` with no result | Planner re-queues with `attempt+1`. |
 | Leaked side effects (servers, ports) | `started.jsonl` entries not stopped | Salvage + checkpoint agent run `board.py leftovers` and clean up. |
 | Stalled investigation | Judge `progress:false` × `stall_rounds` | Stop and checkpoint. |
+| API / rate / session limit | max(3, lanes) consecutive agents return `null` | Stop dispatching, skip synthesis/judge, stop reason `error`; the round is not counted, so a relaunch resumes it. |
 
 ## 7. Budget knobs (manifest `budget`)
 
