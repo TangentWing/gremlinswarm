@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "slug": "arm-crash",
+  "title": "Intermittent crash on ARM64 after one IPC message",
+  "goal": "Find the root cause of the client exiting after the first IPC message on ARM64 builds, with a reproducer.",
+  "question": "Why does the client exit after one message on ARM64 but not x86_64?",
+  "scope": {
+    "in": ["src/ipc/", "src/client/", "tests/ipc/", "CI logs for the arm64 job"],
+    "out": ["UI code", "build system changes", "fixing the bug (investigation only)"],
+    "notes": "Read-only on the repo; experiments go in task directories or /tmp on the ARM box."
+  },
+  "targets": [
+    {"name": "repo", "path": "/abs/path/to/repo", "notes": "main branch @ abc123"}
+  ],
+  "resources": [
+    {"name": "repo", "kind": "local-repo", "access": "/abs/path/to/repo", "exclusive": false,
+     "notes": "Read-only. Do not modify tracked files."},
+    {"name": "armbox", "kind": "ssh", "access": "ssh armbox (key in ~/.ssh/config)", "exclusive": false,
+     "notes": "Shared ARM64 dev box. Work under /tmp/inv-arm-crash/<task-id>."},
+    {"name": "armbox_port_9000", "kind": "port", "access": "armbox:9000", "exclusive": true,
+     "notes": "Only one test server at a time."},
+    {"name": "ci_logs", "kind": "logs", "access": "gh run view --log (repo: org/app)", "exclusive": false,
+     "notes": ""}
+  ],
+  "safety": [
+    "Never modify tracked files in the repo.",
+    "Never run sudo or destructive commands on armbox.",
+    "Kill every process you start; record it with `task started` first."
+  ],
+  "criteria": {
+    "success": [
+      "Root cause identified and located to specific code (file:line).",
+      "A minimal reproducer that fails on ARM64 and passes on x86_64.",
+      "At least two independent lines of evidence (e.g. static + experiment)."
+    ],
+    "evidence_standard": "Claims about runtime behaviour need an experiment or log excerpt; static-only claims must say so and carry at most 'med' confidence.",
+    "stop_if": ["The crash cannot be reproduced after two dedicated attempts — report and ask the human."]
+  },
+  "lanes": [
+    {"name": "static", "mandate": "Read and trace the IPC and client source; form and test hypotheses statically.",
+     "resources": ["repo"], "verify_default": "adversarial",
+     "evidence_standard": "Cite file:line for every claim."},
+    {"name": "logs", "mandate": "Mine CI logs and crash output for the arm64 job; correlate failures with commits and conditions.",
+     "resources": ["ci_logs", "repo"], "verify_default": "light"},
+    {"name": "experiments", "mandate": "Build and run small programs and tests on armbox to confirm or refute hypotheses.",
+     "resources": ["armbox", "armbox_port_9000", "repo"], "verify_default": "light",
+     "evidence_standard": "Record exact commands, exit codes and output excerpts."},
+    {"name": "skunkworks", "mandate": "Generalist: unroutable requests, cross-lane asks, salvage of failed work, odd jobs no other lane owns.",
+     "resources": ["repo", "armbox", "ci_logs"], "verify_default": "light"}
+  ],
+  "budget": {
+    "max_concurrent": 4,
+    "rounds_per_checkpoint": 2,
+    "max_rounds": 8,
+    "max_agents_per_segment": 60,
+    "max_tasks_per_lane_round": 3,
+    "verify_rounds": 2,
+    "max_children": 2,
+    "stall_rounds": 2
+  },
+  "models": {},
+  "effort": {"scope": "low", "synthesizer": "medium", "checkpoint": "low"},
+  "agent_types": {}
+}

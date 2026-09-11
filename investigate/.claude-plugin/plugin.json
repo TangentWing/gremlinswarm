@@ -1,0 +1,7 @@
+{
+  "name": "investigate",
+  "displayName": "Investigate",
+  "version": "0.1.0",
+  "description": "Structured multi-agent investigations of a codebase or environment: interactive setup, then lane-based scope/plan/investigate/verify/synthesize/judge rounds run as a dynamic workflow with human checkpoints.",
+  "keywords": ["investigation", "debugging", "root-cause", "workflow", "multi-agent"]
+}
