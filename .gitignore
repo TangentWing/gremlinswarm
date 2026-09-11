@@ -9,3 +9,6 @@ investigations/
 __pycache__/
 *.pyc
 .DS_Store
+
+# generated investigation targets (examples/*/build_target.py)
+targets/
