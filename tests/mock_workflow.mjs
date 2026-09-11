@@ -47,7 +47,7 @@ function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => 
     const lane = (/Lane: (\w+)/.exec(prompt) || [])[1]
     const tid = (/Task: (\S+)/.exec(prompt) || /Review task (\S+)/.exec(prompt) || /Task (\S+) \(lane/.exec(prompt) || [])[1]
     active++; maxActive = Math.max(maxActive, active)
-    trace.push({ ev: 'start', role, tid, lane, round, label: o.label, at: Date.now() - t0 })
+    trace.push({ ev: 'start', role, tid, lane, round, label: o.label, at: Date.now() - t0, prompt })
     const excl = tid ? (tasks[tid]?.resources || []).filter(r => args.exclusive.includes(r)) : []
     for (const r of excl) {
       if (holders.has(r) && holders.get(r) !== tid) violations.push(`${r} held by ${holders.get(r)} while ${tid} runs`)
@@ -129,6 +129,11 @@ await test('long task spans rounds; exclusive-claim twin deferred then run after
   assert.ok(!overlap(e1, e2), `e1 ${e1} overlaps e2 ${e2}`)
   const r2scope = starts(full.trace, e => e.role === 'scope' && e.round === 2)[0]
   assert.ok(r2scope.at < e1[1], 'round 2 should start while the long task is still running')
+})
+await test('planners see exclusive claims held by in-flight long tasks', () => {
+  const sc = starts(full.trace, e => e.role === 'scope' && e.round === 2 && e.lane === 'experiments')[0]
+  const pl = starts(full.trace, e => e.role === 'plan' && e.round === 2 && e.lane === 'static')[0]
+  for (const p of [sc.prompt, pl.prompt]) assert.match(p, /port held by experiments-r01-01 \(long, lane experiments\)/)
 })
 await test('dead investigator is salvaged', () => {
   assert.equal(starts(full.trace, e => e.role === 'salvage' && e.tid === 'logs-r01-01').length, 1)

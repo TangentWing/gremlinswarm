@@ -112,6 +112,8 @@ def pretool(data: dict, ctx: dict):
             return
         target = os.path.join(data.get("cwd") or os.getcwd(), os.path.expanduser(target))
         roots = [ctx["inv"]] + [os.path.expanduser(p) for p in m.get("writable", [])]
+        if data.get("scratchpad_dir"):
+            roots.append(data["scratchpad_dir"])  # the session's own temp space
         if not any(under(target, r) for r in roots):
             block(f"investigate guard: {tool} to {target} is outside this investigation. Write artifacts in your task "
                   f"directory under {ctx['inv']}/lanes/<lane>/tasks/<id>/"

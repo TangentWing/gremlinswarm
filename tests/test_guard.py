@@ -107,6 +107,12 @@ class GuardTest(unittest.TestCase):
         code, _ = self.pre("a4", "Write", {"file_path": os.path.join(self.tmp, "scratch", "t1", "f.txt")})
         self.assertEqual(code, 0)
 
+    def test_session_scratchpad_allowed(self):
+        self.agent("a8", prompt(self.inv))
+        pad = os.path.join(self.tmp, "pad")
+        code, _ = self.pre("a8", "Write", {"file_path": os.path.join(pad, "plan.json")}, scratchpad_dir=pad)
+        self.assertEqual(code, 0)
+
     def test_safety_deny_blocks_bash(self):
         self.agent("a5", prompt(self.inv))
         code, err = self.pre("a5", "Bash", {"command": "cd repo && git push origin main"})

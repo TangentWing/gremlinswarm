@@ -148,6 +148,7 @@ const scopePrompt = (lane, round, ctx) => [
   `Write your brief with: ${BOARD} write --path lanes/${lane}/scope/round-${pad(round)}.md --as ${lane}/scope <<'EOF' ... EOF`,
   `In flight from earlier rounds (still running, not yours to re-plan): ${ctx.inflight.join(', ') || 'none'}`,
   `Deferred last round (still queued; planner must resubmit or drop): ${ctx.deferred.join(', ') || 'none'}`,
+  `Exclusive resources held by running tasks (any lane): ${ctx.held.join('; ') || 'none'}`,
   `Return brief_path = lanes/${lane}/scope/round-${pad(round)}.md, idle=true only if the lane has nothing worth doing this round.`,
 ].join('\n\n')
 
@@ -156,6 +157,7 @@ const planPrompt = (lane, round, brief, ctx) => [
   `Scope summary: ${brief.summary}   (the full scope brief is included in your brief output)`,
   `At most ${B.max_tasks_per_lane_round} queued tasks. New task ids: ${lane}-r${pad(round)}-01, -02, ...`,
   `In flight (leave out of the plan): ${ctx.inflight.join(', ') || 'none'}`,
+  `Exclusive resources held by running tasks (any lane): ${ctx.held.join('; ') || 'none'} — a task claiming one of these waits until it is released.`,
   `Save with: ${BOARD} plan save --lane ${lane} --round ${round} --inflight "${ctx.inflight.join(',')}" --as ${lane}/plan <<'EOF' {json} EOF`,
   `Return the "dispatch" list and "version" exactly as plan save printed them (dispatch=[] if you queued nothing).`,
 ].join('\n\n')
@@ -375,6 +377,7 @@ async function planLane(lane, round) {
     const ctx = {
       inflight: [...inflight.values()].filter(x => x.t.lane === lane).map(x => x.t.id),
       deferred: deferredPrev.filter(id => id.startsWith(`${lane}-`)),
+      held: [...inflight.values()].flatMap(x => exclusiveOf(x.t).map(r => `${r} held by ${x.t.id} (${x.t.size}, lane ${x.t.lane})`)),
     }
     const brief = await run(scopePrompt(lane, round, ctx),
       opts('scope', { label: `r${round} scope:${lane}`, phase: 'Scope & plan', schema: SCOPE }))

@@ -26,6 +26,12 @@ task (or spend one quick Explore subagent on it — that is the only child you m
    - Tasks must not write the same files. Give each its own working directory
      (its task dir, or `/tmp/inv-<slug>/<task-id>` on remote hosts).
    - `deps` only for true data dependencies (B needs A's output).
+   - Your prompt lists exclusive resources held by running tasks. A task that claims one
+     waits until it is released — often past this round — so plan work that doesn't need it,
+     or accept the wait on purpose.
+   - Never make a task `long` while it claims an exclusive resource another lane needs:
+     split it into short tasks (e.g. establish bisect endpoints, then bisect a range) so the
+     resource is released between them.
 5. **verify**: `none` for mechanical, self-evidencing work (listings, an exit code);
    `light` by default; `adversarial` for claims that are easy to get wrong — root-cause
    claims, "X is unreachable / never happens", negative results, anything the success
