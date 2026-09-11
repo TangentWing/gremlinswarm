@@ -1,0 +1,20 @@
+{
+  "description": "investigate: safety guard and result gate for investigation workflow agents (no-op for everything else)",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit|Bash",
+        "hooks": [
+          {"type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\" pretool", "timeout": 10}
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {"type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\" substop", "timeout": 10}
+        ]
+      }
+    ]
+  }
+}

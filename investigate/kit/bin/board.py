@@ -306,6 +306,13 @@ def validate_manifest(m: dict, root: Path | None = None) -> list[str]:
     for r in m.get("resources", []):
         if "check" in r and not isinstance(r["check"], str):
             errs.append(f"resource '{r.get('name')}': check must be a shell command string")
+    if not isinstance(m.get("writable", []), list) or not all(isinstance(p, str) for p in m.get("writable", [])):
+        errs.append("writable must be a list of paths")
+    for pat in m.get("safety_deny", []):
+        try:
+            re.compile(pat)
+        except (re.error, TypeError) as e:
+            errs.append(f"safety_deny pattern {pat!r} is not a valid regex: {e}")
     for k in ("slug", "goal", "criteria", "lanes", "resources"):
         if k not in m:
             errs.append(f"missing '{k}'")
@@ -1115,6 +1122,9 @@ def manifest_essentials(m: dict) -> str:
         if sc.get("notes"):
             out.append(f"scope notes: {sc['notes']}")
     out.append("safety (hard rules):\n" + "\n".join(f"  - {s}" for s in m.get("safety", [])))
+    if m.get("safety_deny"):
+        out.append("commands blocked by the guard (regex): " + "  ".join(m["safety_deny"]))
+    out.append("writable outside the investigation directory: " + (", ".join(m.get("writable", [])) or "nothing"))
     c = m.get("criteria", {})
     out.append("success criteria:\n" + "\n".join(f"  - {s}" for s in c.get("success", [])))
     if c.get("evidence_standard"):
