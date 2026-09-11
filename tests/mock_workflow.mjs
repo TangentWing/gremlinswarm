@@ -33,7 +33,7 @@ const PLANS = {
   2: { static: ['static-r02-01'], experiments: ['experiments-r01-02'] },
 }
 
-function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => ({ met: r >= 2, progress: true }), failAll = false } = {}) {
+function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => ({ met: r >= 2, progress: true }), refute = () => false, failAll = false } = {}) {
   const logs = [], trace = []
   let active = 0, maxActive = 0
   const holders = new Map()      // exclusive resource -> task id (agent-level check)
@@ -65,10 +65,11 @@ function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => 
           await sleep(10)
           const ids = plans[round][lane]
           return { plan_version: round, summary: `plan ${lane}`,
-                   dispatch: ids.map(id => ({ id, title: id, ...pick(tasks[id], ['resources', 'deps', 'verify', 'size']) })) }
+                   dispatch: ids.map(id => ({ id, title: id, kind: tasks[id].kind || 'other', ...pick(tasks[id], ['resources', 'deps', 'verify', 'size']), ...(tasks[id].items ? { items: tasks[id].items } : {}) })) }
         }
         case 'investigator': {
           const t = tasks[tid]
+          if (/SWEEP ITEM/.test(prompt)) { await sleep(t.itemDur || 30); return { status: 'done', summary: `item of ${tid}` } }
           await sleep(t.dur)
           if (t.dies && !prompt.includes('REVISION')) return null
           return { status: t.status || 'done', summary: `${tid} result` }
@@ -82,6 +83,7 @@ function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => 
         }
         case 'synthesizer': { await sleep(10); return { summary: `synth r${round}` } }
         case 'judge': { await sleep(10); const j = judge(round); return { gaps: [], summary: `judge r${round}`, ...j } }
+        case 'refuter': { await sleep(10); const r = refute(round); return { upheld: !r, objections: r ? ['criterion 2 unverified'] : [], summary: `refuter r${round}` } }
         case 'checkpoint': { await sleep(5); return { report_path: 'report.md', summary: 'checkpoint', open_questions: 0 } }
       }
       throw new Error('unknown role ' + role)
@@ -189,6 +191,51 @@ await test('failed round is not counted as run', () => {
   assert.deepEqual(dead.result.rounds_run, []); assert.equal(dead.result.next_round, 1)
 })
 await test('the failure is logged', () => assert.ok(dead.logs.some(l => /consecutive agent failures/.test(l)), dead.logs.join('\n')))
+
+console.log('== scenario: confirm met')
+await test('refuter runs only when the judge says met, and an upheld verdict stops', () => {
+  assert.equal(starts(full.trace, e => e.role === 'refuter').length, 1)
+  assert.equal(starts(full.trace, e => e.role === 'refuter')[0].round, 2)
+})
+await test('no refuter when the judge never says met', () => assert.equal(starts(stall.trace, e => e.role === 'refuter').length, 0))
+const refuted = await harness({ args: { ...BASE_ARGS, budget: { ...BASE_ARGS.budget, rounds_per_checkpoint: 3 } },
+                                judge: () => ({ met: true, progress: true }), refute: r => r === 1 })
+await test('a refuted met verdict continues the investigation', () => {
+  assert.equal(refuted.result.reason, 'met'); assert.deepEqual(refuted.result.rounds_run, [1, 2])
+  assert.ok(refuted.logs.some(l => /refuted/.test(l)), refuted.logs.join('\n'))
+})
+
+console.log('== scenario: sweeps')
+const SWEEP_TASKS = {
+  'logs-r01-01': { kind: 'sweep', items: ['f1', 'f2', 'f3'], resources: ['logs'], deps: [], verify: 'light', size: 'short', dur: 20, itemDur: 60 },
+  'experiments-r01-01': { kind: 'sweep', items: ['c1', 'c2', 'c3'], resources: ['port'], deps: [], verify: 'none', size: 'short', dur: 20, itemDur: 40 },
+  'static-r01-01': { kind: 'sweep', items: ['a', 'b', 'c', 'd', 'e'], resources: ['repo'], deps: [], verify: 'none', size: 'short', dur: 20, itemDur: 10 },
+}
+const SWEEP_PLANS = { 1: { logs: ['logs-r01-01'], experiments: ['experiments-r01-01'], static: ['static-r01-01'] } }
+const sw = await harness({ tasks: SWEEP_TASKS, plans: SWEEP_PLANS, judge: () => ({ met: true, progress: true }),
+                           args: { ...BASE_ARGS, budget: { ...BASE_ARGS.budget, max_sweep_items: 4 } } })
+const itemWin = (tid) => sw.trace.filter(e => e.ev === 'start' && e.label && e.label.startsWith(`${tid} item`)).map(e => window(sw.trace, e.label))
+await test('one agent per item plus a reducer', () => {
+  assert.equal(itemWin('logs-r01-01').length, 3)
+  assert.equal(starts(sw.trace, e => e.label === 'logs-r01-01 reduce').length, 1)
+})
+await test('reducer starts after every item finished', () => {
+  const red = window(sw.trace, 'logs-r01-01 reduce'); assert.ok(itemWin('logs-r01-01').every(w => w[1] <= red[0]))
+})
+await test('items run in parallel without exclusive claims', () => {
+  const w = itemWin('logs-r01-01'); assert.ok(w.some((a, i) => w.some((b, j) => i !== j && overlap(a, b))), JSON.stringify(w))
+})
+await test('items run one at a time when the task holds an exclusive resource', () => {
+  const w = itemWin('experiments-r01-01'); assert.equal(w.length, 3)
+  assert.ok(!w.some((a, i) => w.some((b, j) => i !== j && overlap(a, b))), JSON.stringify(w))
+})
+await test('items beyond max_sweep_items are dropped and logged', () => {
+  assert.equal(itemWin('static-r01-01').length, 4)
+  assert.ok(sw.logs.some(l => /static-r01-01: sweep capped at 4 of 5 items/.test(l)), sw.logs.join('\n'))
+})
+await test('sweeps keep global concurrency and exclusivity invariants', () => {
+  assert.ok(sw.maxActive <= 4, `max ${sw.maxActive}`); assert.deepEqual(sw.violations, [])
+})
 
 console.log('== scenario: concurrency 1')
 const one = await harness({ args: { ...BASE_ARGS, budget: { ...BASE_ARGS.budget, max_concurrent: 1 } } })

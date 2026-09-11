@@ -34,3 +34,11 @@ interesting. The planner decides what happens next; your job is a clean, honest 
    - `failed` — attempted, but the approach broke.
 
 Return `{status, summary, board_ids, artifacts}` — the same status and summary you recorded.
+
+## Sweep tasks
+
+- **`SWEEP ITEM k/N` in your prompt**: do the task's per-item instructions for that one item
+  only, post what you find, record it with `task item --id T --n k ...`, and do not call
+  `task finish`.
+- **`REDUCE` in your prompt**: every item has run; `task show` lists their results. Build the
+  task's deliverable from them (note missing or failed items explicitly), then `task finish`.

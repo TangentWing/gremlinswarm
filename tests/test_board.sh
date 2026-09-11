@@ -148,6 +148,35 @@ expect_fail "probe exits non-zero when a check fails" b2 probe
 { b2 probe --resource ci_logs | grep -q "no check defined"; } || fail "missing check"; ok "resources without a check are reported, not failed"
 { b2 brief --role scope --lane static | grep -q "state: board.py probe --lane static"; } || fail "scope brief runs probes"; ok "scope brief includes the lane's probe results"
 
+echo "== sweeps"
+expect_fail "sweep without items" sh -c "echo '{\"tasks\":[{\"id\":\"logs-r01-01\",\"title\":\"t\",\"kind\":\"sweep\",\"objective\":\"o\",\"deliverable\":\"d\"}]}' | python3 $S2/bin/board.py plan save --lane logs"
+expect_fail "items on a non-sweep task" sh -c "echo '{\"tasks\":[{\"id\":\"logs-r01-01\",\"title\":\"t\",\"items\":[\"a\"],\"objective\":\"o\",\"deliverable\":\"d\"}]}' | python3 $S2/bin/board.py plan save --lane logs"
+python3 -c "import json;print(json.dumps({'tasks':[{'id':'logs-r01-01','title':'t','kind':'sweep','items':[str(i) for i in range(13)],'objective':'o','deliverable':'d'}]}))" > "$S2/big.json"
+expect_fail "more items than max_sweep_items" b2 plan save --lane logs --file "$S2/big.json"
+D=$(echo '{"tasks":[{"id":"logs-r01-01","title":"scan logs","kind":"sweep","items":["day-01.log","day-02.log","day-03.log"],"objective":"o","deliverable":"d"}]}' | b2 plan save --lane logs --as logs/plan)
+{ grep -q '"kind": "sweep"' <<<"$D" && grep -q '"day-02.log"' <<<"$D"; } || fail "dispatch carries kind and items"; ok "dispatch carries kind and items"
+{ b2 task item --id logs-r01-01 --n 2 --status done --summary "3 errors" --board-ids B-logs-0001 --as logs/logs-r01-01 | grep -q "item 2 -> done"; } || fail "task item records"; ok "task item records a result (and starts the task)"
+{ b2 plan show --lane logs | grep -q "logs-r01-01 \[running"; } || fail "first item starts task"; ok "first item marks the sweep running"
+expect_fail "item number out of range" b2 task item --id logs-r01-01 --n 4 --status done --summary x
+OUT=$(b2 task show --id logs-r01-01)
+{ grep -q "sweep items (1/3 reported)" <<<"$OUT" && grep -q "2. day-02.log: \[done\] 3 errors" <<<"$OUT" && grep -q "1. day-01.log: (no result)" <<<"$OUT"; } || fail "task show lists items"; ok "task show lists reported and missing items"
+
+echo "== confirm met"
+echo '{"met":true,"progress":true,"gaps":[],"summary":"all met"}' | b2 judge save --round 1 --as judge >/dev/null
+{ b2 status | grep -q "status met"; } || fail "met sets status"; ok "met verdict sets status met"
+{ b2 judge refute --round 1 --objection "criterion 3: bisect used single runs" --as refuter | grep -q "refuted"; } || fail "refute"; ok "refuter can overturn the verdict"
+python3 - "$S2/judge/round-01.json" <<'EOF'
+import json, sys
+v = json.load(open(sys.argv[1]))
+assert v["met"] is False and v["met_before_refute"] is True, v
+assert v["gaps"][0].startswith("[refuter] criterion 3"), v["gaps"]
+assert v["refuted"]["by"] == "refuter"
+EOF
+ok "refuted verdict keeps history and turns objections into gaps"
+{ b2 status | grep -q "status active"; } || fail "refute reopens"; ok "refute reopens the investigation (status active)"
+expect_fail "refute without objections" b2 judge refute --round 1
+{ b2 brief --role refuter | grep -q "Refuter"; } || fail "refuter brief"; ok "refuter has a brief (role prompt + verdict)"
+
 echo "== write guard"
 { echo hi | b write --path lanes/static/scope/round-01.md >/dev/null; } || fail "write inside inv dir"; ok "write inside inv dir"
 expect_fail "writing manifest.json" sh -c "echo hi | python3 $S/bin/board.py write --path manifest.json"

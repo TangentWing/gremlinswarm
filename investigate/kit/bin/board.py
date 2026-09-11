@@ -34,7 +34,8 @@ Quick reference (all commands accept --as AUTHOR and --inv PATH):
   worklog --lane L [--tail N]
   leftovers [--lane L]
   write --path REL [--append]         (stdin → file inside the investigation dir)
-  judge save --round N [--file F]     judge show [--round N]
+  judge save --round N [--file F]     judge show [--round N]     judge refute --round N --objection O ...
+  task item --id ID --n K --status S --summary S [--board-ids ...]   (one sweep item's result)
   segment close --start N --end M --reason R
   validate | scaffold | wf-args [--rounds N]
   archetypes [--show NAME]            lane archetypes available to this investigation
@@ -63,7 +64,7 @@ BOARD_STATUSES = {"open", "confirmed", "refuted", "irrelevant", "answered"}
 CONFIDENCE = {"low", "med", "high"}
 MAIL_TYPES = {"query", "task-request", "reply", "notice", "failure", "steering"}
 MAIL_STATUSES = {"new", "accepted", "declined", "done"}
-TASK_KINDS = {"read", "trace", "experiment", "endpoint", "debug", "analysis", "cleanup", "other"}
+TASK_KINDS = {"read", "trace", "experiment", "endpoint", "debug", "analysis", "cleanup", "sweep", "other"}
 TASK_STATUSES = {"queued", "running", "done", "partial", "failed", "blocked", "needs_redo", "dropped"}
 TERMINAL = {"done", "partial", "failed", "blocked", "needs_redo", "dropped"}
 REQUEUE_FROM = {"failed", "partial", "blocked", "needs_redo", "running"}
@@ -71,7 +72,7 @@ FINISH_STATUSES = {"done", "partial", "failed", "blocked"}
 VERIFY = {"none", "light", "adversarial"}
 SIZES = {"short", "long"}
 VERDICTS = {"accept", "revise", "redo"}
-ROLES = ["scope", "plan", "investigator", "challenger", "salvage", "synthesizer", "judge", "checkpoint"]
+ROLES = ["scope", "plan", "investigator", "challenger", "salvage", "synthesizer", "judge", "refuter", "checkpoint"]
 
 DEFAULT_BUDGET = {
     "max_concurrent": 4,
@@ -82,6 +83,7 @@ DEFAULT_BUDGET = {
     "verify_rounds": 2,
     "max_children": 2,
     "stall_rounds": 2,
+    "max_sweep_items": 12,
 }
 
 
@@ -756,6 +758,15 @@ def normalize_task(t: dict, lane: str, m: dict, budget: dict, root: Path | None 
         die(f"task {t['id']}: verify must be one of {sorted(VERIFY)}")
     if t["size"] not in SIZES:
         die(f"task {t['id']}: size must be one of {sorted(SIZES)}")
+    if t["kind"] == "sweep":
+        items = t.get("items")
+        if not isinstance(items, list) or not items or not all(isinstance(i, str) and i for i in items):
+            die(f"task {t['id']}: a sweep needs 'items': a non-empty list of strings (one per unit of work)")
+        if len(items) > budget["max_sweep_items"]:
+            die(f"task {t['id']}: {len(items)} sweep items exceeds max_sweep_items={budget['max_sweep_items']}; "
+                f"split into several sweeps or group items")
+    elif "items" in t:
+        die(f"task {t['id']}: 'items' is only for kind 'sweep'")
     for r in t["resources"]:
         if r not in res_names:
             die(f"task {t['id']}: unknown resource '{r}' (declared: {', '.join(sorted(res_names))})")
@@ -844,7 +855,8 @@ def cmd_plan(args):
         write_json(ppath, plan)
     worklog(root, lane, "plan-save", author(args), version=plan["version"],
             summary=f"{len(queued)} queued, {len(drop)} dropped")
-    dispatch = [{k: t[k] for k in ("id", "title", "resources", "deps", "verify", "size")} for t in queued]
+    dispatch = [{k: t[k] for k in ("id", "title", "kind", "resources", "deps", "verify", "size", "items") if k in t}
+                for t in queued]
     print(json.dumps({"version": plan["version"], "dispatch": dispatch}, indent=1))
 
 
@@ -891,6 +903,14 @@ def cmd_task(args):
         for name in ("task.json", "result.json"):
             if (td / name).exists():
                 print(f"## {name}\n{(td / name).read_text()}")
+        item_files = sorted((td / "items").glob("*.json")) if (td / "items").exists() else []
+        if item_files or (td / "task.json").exists() and load_json(td / "task.json").get("kind") == "sweep":
+            spec = load_json(td / "task.json") or {}
+            done = {load_json(f)["n"]: load_json(f) for f in item_files}
+            print(f"## sweep items ({len(done)}/{len(spec.get('items', []))} reported)")
+            for n, item in enumerate(spec.get("items", []), 1):
+                r = done.get(n)
+                print(f"  {n:3d}. {item}: " + (f"[{r['status']}] {r['summary']}" + (f"  ({', '.join(r['board_ids'])})" if r['board_ids'] else "") if r else "(no result)"))
         for r in sorted(td.glob("review-*.json")):
             print(f"## {r.name}\n{r.read_text()}")
         notes = (td / "notes.md").read_text().splitlines() if (td / "notes.md").exists() else []
@@ -937,6 +957,22 @@ def cmd_task(args):
         if live:
             print(f"WARNING: {len(live)} recorded side effect(s) not stopped: "
                   + "; ".join(f"{s['ref']}: {s['what']}" for s in live))
+    elif c == "item":
+        if args.status not in FINISH_STATUSES:
+            die(f"--status must be one of {sorted(FINISH_STATUSES)}")
+        if not (td / "task.json").exists():  # first item of a sweep starts the task
+            t = set_plan_status(root, tid, status="running", started_round=current_round(root))
+            td.mkdir(parents=True, exist_ok=True)
+            write_json(td / "task.json", t)
+            (td / "notes.md").touch()
+            worklog(root, lane, "task-start", who, task=tid, attempt=t.get("attempt", 1))
+        items = load_json(td / "task.json").get("items") or []
+        if not 1 <= args.n <= max(len(items), 1):
+            die(f"--n must be between 1 and {len(items)} for this sweep")
+        write_json(td / "items" / f"{args.n:03d}.json",
+                   {"n": args.n, "item": items[args.n - 1] if items else None, "status": args.status,
+                    "summary": args.summary, "board_ids": csv(args.board_ids), "by": who, "ts": now()})
+        print(f"{tid} item {args.n} -> {args.status}")
     elif c == "review":
         if args.verdict not in VERDICTS:
             die(f"--verdict must be one of {sorted(VERDICTS)}")
@@ -1019,8 +1055,27 @@ def cmd_judge(args):
             st["round"] = max(st.get("round", 1), args.round + 1)
             if verdict["met"]:
                 st["status"] = "met"
+            elif st.get("status") == "met":
+                st["status"] = "active"
             write_json(spath, st)
         print(f"judge round {args.round} saved; next round {args.round + 1}")
+    elif args.judge_cmd == "refute":
+        path = root / "judge" / f"round-{args.round:02d}.json"
+        verdict = load_json(path) or die(f"no judge verdict for round {args.round}")
+        if not args.objection:
+            die("refute needs at least one --objection")
+        verdict["met_before_refute"] = verdict.get("met")
+        verdict["met"] = False
+        verdict["refuted"] = {"by": author(args), "ts": now(), "objections": args.objection}
+        verdict["gaps"] = [f"[refuter] {o}" for o in args.objection] + list(verdict.get("gaps", []))
+        write_json(path, verdict)
+        spath = root / "state.json"
+        with locked(spath):
+            st = state(root)
+            if st.get("status") == "met":
+                st["status"] = "active"
+            write_json(spath, st)
+        print(f"judge round {args.round}: met verdict refuted ({len(args.objection)} objection(s))")
     else:
         files = sorted((root / "judge").glob("round-*.json"))
         if args.round:
@@ -1045,6 +1100,7 @@ BRIEF_STATE = {
                           if a.task else []),
     "synthesizer": lambda a: [["query", "--lane", "all"] + (["--round", str(a.round)] if a.round else [])],
     "judge": lambda a: [["judge", "show"], ["steer", "list"], ["query", "--lane", "shared", "--format", "full"]],
+    "refuter": lambda a: [["judge", "show"], ["query", "--lane", "shared", "--format", "full"]],
     "checkpoint": lambda a: [["status"], ["questions"], ["leftovers"]],
 }
 
@@ -1328,6 +1384,12 @@ def build_parser() -> argparse.ArgumentParser:
     x.add_argument("--board-ids")
     x.add_argument("--artifacts")
     x.add_argument("--details-file")
+    x = ts.add_parser("item", parents=[common])
+    x.add_argument("--id", required=True)
+    x.add_argument("--n", type=int, required=True)
+    x.add_argument("--status", required=True)
+    x.add_argument("--summary", required=True)
+    x.add_argument("--board-ids")
     x = ts.add_parser("review", parents=[common])
     x.add_argument("--id", required=True)
     x.add_argument("--verdict", required=True)
@@ -1350,6 +1412,9 @@ def build_parser() -> argparse.ArgumentParser:
     x.add_argument("--file")
     x = js.add_parser("show", parents=[common])
     x.add_argument("--round", type=int)
+    x = js.add_parser("refute", parents=[common])
+    x.add_argument("--round", type=int, required=True)
+    x.add_argument("--objection", action="append")
 
     s = sp("segment", cmd_segment, group=True)
     gs = s.add_subparsers(dest="seg_cmd", required=True)

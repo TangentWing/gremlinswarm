@@ -32,12 +32,17 @@ task (or spend one quick Explore subagent on it — that is the only child you m
    criteria hinge on.
 6. **size**: `long` only for work clearly longer than the rest (builds, soak tests); it
    runs across round boundaries. **max_children**: 0 for simple tasks.
-7. **Mail.** For each new message: accept (create a task, then
+7. **Sweeps** — the same check over many independent units (log files, handlers, commits,
+   endpoints): one task with `"kind": "sweep"`, `"items": [...]` (one string per unit, at most
+   the budget's `max_sweep_items`) and `instructions` written *per item*. The scheduler runs
+   one agent per item, then a reducer that aggregates into the `deliverable`. Items run in
+   parallel unless the task claims an exclusive resource.
+8. **Mail.** For each new message: accept (create a task, then
    `mail set --id M --status accepted`), decline in one line
    (`mail reply --id M --status declined --body "out of scope: ..."`), or answer in one
    line if the brief already contains the answer. Never do the requested work yourself.
-8. **Human steering overrides your judgment.** Honour it explicitly.
-9. Fewer, better tasks. Queuing zero tasks is fine if nothing is worth doing.
+9. **Human steering overrides your judgment.** Honour it explicitly.
+10. Fewer, better tasks. Queuing zero tasks is fine if nothing is worth doing.
 
 ## Saving
 

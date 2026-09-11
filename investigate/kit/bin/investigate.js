@@ -6,7 +6,7 @@ export const meta = {
     { title: 'Scope & plan', detail: 'per lane: scope brief, then task plan (pipelined, no barrier across lanes)' },
     { title: 'Investigate', detail: 'task chains under the global pool: investigator, challenger, revise, salvage' },
     { title: 'Synthesize', detail: 'dedupe, contradictions, promote to the shared board' },
-    { title: 'Judge', detail: 'criteria vs shared board; gaps feed the next round' },
+    { title: 'Judge', detail: 'criteria vs shared board; a met verdict must survive a refuter' },
     { title: 'Checkpoint', detail: 'drain long tasks, clean leftovers, write the report' },
   ],
 }
@@ -23,7 +23,8 @@ const BOARD = A.board
 const B = A.budget
 const LANES = A.lanes
 const EXCL = new Set(A.exclusive || [])
-const RESERVE = 3 // synthesize + judge + checkpoint are always affordable
+const RESERVE = 4 // synthesize + judge + refuter + checkpoint are always affordable
+const SWEEP_CAP = B.max_sweep_items ?? 12
 const pad = n => String(n).padStart(2, '0')
 
 // ------------------------------------------------------------------ schemas
@@ -46,7 +47,7 @@ const PLAN = {
     summary: str(600),
     dispatch: { type: 'array', items: { type: 'object', required: ['id', 'title', 'resources', 'deps', 'verify', 'size'],
       properties: {
-        id: str(), title: str(200), resources: strs, deps: strs,
+        id: str(), title: str(200), kind: str(), items: strs, resources: strs, deps: strs,
         verify: { type: 'string', enum: ['none', 'light', 'adversarial'] },
         size: { type: 'string', enum: ['short', 'long'] },
       } } },
@@ -73,6 +74,10 @@ const SYNTH = {
 const JUDGE = {
   type: 'object', required: ['met', 'progress', 'gaps', 'summary'],
   properties: { met: { type: 'boolean' }, progress: { type: 'boolean' }, gaps: strs, summary: str(800) },
+}
+const REFUTE = {
+  type: 'object', required: ['upheld', 'summary'],
+  properties: { upheld: { type: 'boolean' }, objections: strs, summary: str(800) },
 }
 const CHECKPOINT = {
   type: 'object', required: ['report_path', 'summary'],
@@ -165,6 +170,31 @@ const investigatorPrompt = (t, round, rev) => [
   `You may spawn at most ${t.max_children ?? B.max_children} child subagent(s). Finish with ${BOARD} task finish ... and return the same status/summary.`,
 ].join('\n\n')
 
+const sweepItemPrompt = (t, round, item, k, n) => [
+  header('investigator', round, `${t.lane}/${t.id}`, t.lane),
+  `Task: ${t.id} — ${t.title}`,
+  `SWEEP ITEM ${k}/${n}: ${item}`,
+  `Read the task spec with: ${BOARD} task show --id ${t.id}. Apply its per-item instructions to THIS ITEM ONLY; other agents handle the other items in parallel.`,
+  `Record your item result with: ${BOARD} task item --id ${t.id} --n ${k} --status done|partial|failed|blocked --summary "..." [--board-ids ...] --as ${t.lane}/${t.id}`,
+  `Do NOT call task finish — a reducer aggregates all items afterwards.`,
+].join('\n\n')
+
+const reducePrompt = (t, round, n, rev) => [
+  header('investigator', round, `${t.lane}/${t.id}`, t.lane),
+  `Task: ${t.id} — ${t.title}`,
+  rev
+    ? `REDUCE, REVISION ${rev}: a challenger objected — read review-${rev}.json in the task directory and address every objection.`
+    : `REDUCE: all ${n} sweep items have run; \`${BOARD} task show --id ${t.id}\` lists each item's result.`,
+  `Aggregate the item results into the task's deliverable, post what it establishes to the board, then ${BOARD} task finish ... and return the same status/summary.`,
+].join('\n\n')
+
+const refuterPrompt = (round) => [
+  header('refuter', round, 'refuter', null),
+  `The judge declared every success criterion met in round ${round} (judge/round-${pad(round)}.json). The investigation stops if this verdict stands.`,
+  `If a criterion is not actually met, record it with: ${BOARD} judge refute --round ${round} --objection "..." [--objection ...] --as refuter`,
+  `Return upheld=true only if every criterion survives your attempt to refute it.`,
+].join('\n\n')
+
 const challengerPrompt = (t, round, n, allowRevise) => [
   header('challenger', round, `${t.lane}/challenger`, t.lane, ` --task ${t.id}`),
   `Review task ${t.id} — ${t.title}   (verify level: ${t.verify}, review ${n})`,
@@ -207,13 +237,30 @@ const checkpointPrompt = (first, last, reason, extra) => [
 async function runTask(t, round) {
   const verdicts = []
   let unverified = false
+  const sweep = t.kind === 'sweep' && Array.isArray(t.items) && t.items.length > 0
+  let items = sweep ? t.items : []
   const work = async (rev) => {
-    const r = await run(investigatorPrompt(t, round, rev),
-      opts('investigator', { label: `${t.id}${rev ? ` rev${rev}` : ''}`, phase: 'Investigate', schema: RESULT }))
+    const r = sweep
+      ? await run(reducePrompt(t, round, items.length, rev),
+          opts('investigator', { label: `${t.id} reduce${rev ? ` rev${rev}` : ''}`, phase: 'Investigate', schema: RESULT }))
+      : await run(investigatorPrompt(t, round, rev),
+          opts('investigator', { label: `${t.id}${rev ? ` rev${rev}` : ''}`, phase: 'Investigate', schema: RESULT }))
     if (r) return r
     log(`${t.id}: investigator lost → salvage`)
     return run(salvagePrompt(t, round, rev ? `died during revision ${rev}` : 'died or was stopped'),
       opts('salvage', { label: `salvage ${t.id}`, phase: 'Investigate', schema: RESULT }))
+  }
+  if (sweep) {
+    const affordable = Math.max(0, B.max_agents_per_segment - agentsUsed - RESERVE - 1)
+    const cap = Math.min(SWEEP_CAP, affordable)
+    if (items.length > cap) { log(`${t.id}: sweep capped at ${cap} of ${items.length} items (${cap < SWEEP_CAP ? 'agent budget' : 'max_sweep_items'})`); items = items.slice(0, cap) }
+    const doItem = (it, i) => run(sweepItemPrompt(t, round, it, i + 1, items.length),
+      opts('investigator', { label: `${t.id} item ${i + 1}/${items.length}`, phase: 'Investigate', schema: RESULT }))
+    let itemResults = []
+    if (exclusiveOf(t).length) for (let i = 0; i < items.length; i++) itemResults.push(await doItem(items[i], i))  // one at a time on an exclusive resource
+    else itemResults = await Promise.all(items.map(doItem))
+    const lostItems = itemResults.filter(r => !r).length
+    if (lostItems) log(`${t.id}: ${lostItems} of ${items.length} sweep items lost; the reducer sees which are missing`)
   }
   let res = await work(0)
   if (!res) return { id: t.id, lane: t.lane, status: 'lost', summary: 'investigator and salvage both failed', verdicts }
@@ -398,7 +445,15 @@ for (; round <= last && reason === 'checkpoint'; round++) {
   if (!verdict) { log(`Round ${round}: judge lost — counting as no progress.`); stall++ }
   else {
     log(`Round ${round} judge: met=${verdict.met} progress=${verdict.progress} — ${verdict.summary.slice(0, 200)}`)
-    if (verdict.met) { reason = 'met'; break }
+    if (verdict.met) {
+      // stopping is the costliest decision: a fresh refuter must fail to overturn it
+      const check = await run(refuterPrompt(round), opts('refuter', { label: `r${round} refute met`, phase: 'Judge', schema: REFUTE }))
+      rounds[rounds.length - 1].refuter = check
+      if (!check) { log(`Round ${round}: refuter lost — accepting the judge's met verdict unconfirmed.`); reason = 'met'; break }
+      if (check.upheld) { reason = 'met'; break }
+      log(`Round ${round}: met verdict refuted — ${(check.objections || []).join('; ').slice(0, 300)}`)
+      verdict.met = false
+    }
     stall = verdict.progress ? 0 : stall + 1
   }
   if (stall >= B.stall_rounds) { reason = 'stall'; log(`${stall} round(s) without progress; stopping.`); break }
