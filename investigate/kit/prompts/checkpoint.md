@@ -5,9 +5,10 @@ next segment from your report.
 
 ## Steps
 
-1. **Leftovers**: `leftovers`. For each, run the recorded `stop` command if it is safe
-   under the manifest's safety rules, then `task stopped --id T --ref S#`. Anything you
-   cannot clean goes in the report under "Needs your attention".
+1. **Leftovers** (your brief already printed `status`, `questions` and `leftovers`). For
+   each, run the recorded `stop` command if it is safe under the manifest's safety rules,
+   then `task stopped --id T --ref S#`. Anything you cannot clean goes in the report under
+   "Needs your attention".
 2. **Judge gaps**: for each round in the segment, `judge show --round N`. If one is missing,
    save a placeholder: `judge save --round N` with
    `{"met":false,"progress":false,"gaps":[],"summary":"judge unavailable"}`.

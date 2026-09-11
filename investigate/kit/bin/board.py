@@ -890,6 +890,79 @@ def cmd_judge(args):
         print(files[-1].read_text())
 
 
+# ---------------------------------------------------------------- brief
+
+# State each role needs up front; saves agents several opening tool calls.
+BRIEF_STATE = {
+    "scope": lambda a: [["plan", "show", "--lane", a.lane], ["worklog", "--lane", a.lane, "--tail", "15"],
+                        ["mail", "list", "--lane", a.lane], ["steer", "list", "--lane", a.lane], ["judge", "show"],
+                        ["query", "--lane", a.lane, "--limit", "15"], ["query", "--lane", "shared", "--limit", "15"]],
+    "plan": lambda a: [["plan", "show", "--lane", a.lane], ["mail", "list", "--lane", a.lane],
+                       ["steer", "list", "--lane", a.lane]],
+    "challenger": lambda a: [["task", "show", "--id", a.task]] if a.task else [],
+    "salvage": lambda a: ([["task", "show", "--id", a.task], ["leftovers", "--lane", lane_of_task(a.task)]]
+                          if a.task else []),
+    "synthesizer": lambda a: [["query", "--lane", "all"] + (["--round", str(a.round)] if a.round else [])],
+    "judge": lambda a: [["judge", "show"], ["steer", "list"], ["query", "--lane", "shared", "--format", "full"]],
+    "checkpoint": lambda a: [["status"], ["questions"], ["leftovers"]],
+}
+
+
+def manifest_essentials(m: dict) -> str:
+    out = [f"goal: {m.get('goal', '')}"]
+    if m.get("question"):
+        out.append(f"question: {m['question']}")
+    sc = m.get("scope", {})
+    if sc:
+        out.append(f"scope in: {'; '.join(sc.get('in', []))}\nscope out: {'; '.join(sc.get('out', []))}")
+        if sc.get("notes"):
+            out.append(f"scope notes: {sc['notes']}")
+    out.append("safety (hard rules):\n" + "\n".join(f"  - {s}" for s in m.get("safety", [])))
+    c = m.get("criteria", {})
+    out.append("success criteria:\n" + "\n".join(f"  - {s}" for s in c.get("success", [])))
+    if c.get("evidence_standard"):
+        out.append(f"evidence standard: {c['evidence_standard']}")
+    if c.get("stop_if"):
+        out.append("stop if:\n" + "\n".join(f"  - {s}" for s in c["stop_if"]))
+    out.append("resources:\n" + "\n".join(
+        f"  - {r['name']} [{r.get('kind', '?')}{', EXCLUSIVE' if r.get('exclusive') else ''}] "
+        f"access: {r.get('access', '')}{'  — ' + r['notes'] if r.get('notes') else ''}" for r in m.get("resources", [])))
+    out.append("lanes:\n" + "\n".join(f"  - {l['name']}: {l['mandate']}" for l in m.get("lanes", [])))
+    return "\n".join(out)
+
+
+def cmd_brief(args):
+    root = inv_root(args)
+    role = args.role
+    if role not in ROLES:
+        die(f"--role must be one of {', '.join(ROLES)}")
+    if args.lane:
+        check_lane(root, args.lane)
+    sections = [("Protocol", (root / "prompts" / "protocol.md").read_text()),
+                (f"Your role: {role}", (root / "prompts" / f"{role}.md").read_text())]
+    if args.lane:
+        sections.append((f"Your lane: {args.lane}", (root / "lanes" / args.lane / "lane.md").read_text()))
+    sections.append(("Manifest essentials", manifest_essentials(manifest(root))))
+    if role == "plan" and args.lane and args.round:
+        brief = root / "lanes" / args.lane / "scope" / f"round-{args.round:02d}.md"
+        sections.append((f"Scope brief (round {args.round})",
+                         brief.read_text() if brief.exists() else "(no scope brief for this round)"))
+    for s in sections:
+        print(f"\n{'=' * 8} {s[0]} {'=' * 8}\n{s[1].strip()}\n")
+    calls = BRIEF_STATE.get(role, lambda a: [])(args)
+    if role in ("scope", "plan") and not args.lane:
+        calls = []
+    for argv in calls:
+        print(f"\n{'=' * 8} state: board.py {' '.join(argv)} {'=' * 8}")
+        sub = build_parser().parse_args(argv + ["--inv", str(root)])
+        sub.author = author(args)
+        try:
+            sub.fn(sub)
+        except BoardError as e:
+            print(f"(error: {e})")
+    print(f"\n{'=' * 8} end of brief {'=' * 8}")
+
+
 def cmd_segment(args):
     root = inv_root(args)
     spath = root / "state.json"
@@ -958,9 +1031,11 @@ def cmd_wf_args(args):
     budget = {**DEFAULT_BUDGET, **m.get("budget", {})}
     if args.rounds:
         budget["rounds_per_checkpoint"] = args.rounds
+    board = root / "bin" / "board.py"
+    board.chmod(board.stat().st_mode | 0o111)  # invoked directly via its shebang
     out = {
         "inv": str(root),
-        "board": f"python3 {root / 'bin' / 'board.py'}",
+        "board": str(board),  # one token, so agents can keep it in a shell variable under any shell
         "start_round": st.get("round", 1),
         "lanes": [l["name"] for l in m["lanes"]],
         "exclusive": sorted(r["name"] for r in m["resources"] if r.get("exclusive")),
@@ -992,6 +1067,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp("validate", cmd_validate)
     sp("scaffold", cmd_scaffold)
+    s = sp("brief", cmd_brief)
+    s.add_argument("--role", required=True, choices=ROLES)
+    s.add_argument("--lane")
+    s.add_argument("--task")
+    s.add_argument("--round", type=int)
     s = sp("status", cmd_status)
     s.add_argument("--json", action="store_true")
     s = sp("wf-args", cmd_wf_args)

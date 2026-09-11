@@ -5,8 +5,8 @@ running, and make sure the planner knows what happened.
 
 ## Steps
 
-1. `task show --id T` — spec, `notes.md`, partial artifacts, earlier result/reviews.
-   `leftovers --lane L` — side effects the dead agent recorded but never stopped.
+1. Your brief already printed `task show` (spec, `notes.md`, partial artifacts, earlier
+   result/reviews) and `leftovers` for the lane (side effects recorded but never stopped).
 2. **Clean up** this task's leftovers: run each recorded `stop` command if it is safe under
    the manifest's safety rules, then `task stopped --id T --ref S#`. If a process may be
    hung, check it first (`ps`, `ssh host pgrep ...`); escalate from polite to forceful

@@ -7,8 +7,7 @@ task (or spend one quick Explore subagent on it — that is the only child you m
 
 ## Steps
 
-1. Read the brief (path in your prompt), then `plan show --lane L`, `steer list --lane L`,
-   `mail list --lane L`.
+1. Your brief already printed the scope brief, the current plan, mail and steering.
 2. **Validate the existing plan** against the brief and the latest evidence:
    - done → never redo; follow-up work gets a new id.
    - needs_redo / failed / partial / orphaned → resubmit the **same id** (the attempt

@@ -5,9 +5,9 @@ investigate. Simple cleanup you do yourself; anything that needs new evidence yo
 
 ## Steps
 
-1. **Read what is new**: `query --lane all --round N` (round in your prompt), then widen as
-   needed (`--status open`, `--kind hypothesis`, ...). Skim results of the finished tasks
-   listed in your prompt via their board ids.
+1. **Read what is new**: your brief already printed this round's entries across all boards;
+   widen as needed (`--status open`, `--kind hypothesis`, `--include-superseded`). Skim
+   the results of the finished tasks listed in your prompt via their board ids.
 2. **Deduplicate.** Entries that say the same thing → one merged entry on `shared` with
    `--supersedes id,id`. No loss of fidelity: keep every evidence ref, and the highest
    confidence the evidence justifies (not the highest claimed).

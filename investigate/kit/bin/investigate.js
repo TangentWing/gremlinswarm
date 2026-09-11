@@ -117,15 +117,14 @@ async function run(prompt, o) {
 
 // ------------------------------------------------------------------ prompts
 // Prompts carry parameters only; role instructions live in the investigation's prompt pack.
-function header(role, round, who, lane) {
-  const reads = [`${INV}/prompts/protocol.md`, `${INV}/prompts/${role}.md`]
-  if (lane) reads.push(`${INV}/lanes/${lane}/lane.md`)
+function header(role, round, who, lane, briefArgs = '') {
   return [
     `You are the ${role.toUpperCase()} in a structured investigation.`,
     `Investigation directory: ${INV}`,
-    `Board CLI: ${BOARD}   (pass --as ${who} on every call)`,
+    `Board CLI: ${BOARD}   (an executable; pass --as ${who} on every call)`,
     `Round: ${round}${lane ? `   Lane: ${lane}` : ''}`,
-    `First read, in order: ${reads.join(', ')}. Follow them exactly.`,
+    `Your first action: ${BOARD} brief --role ${role}${lane ? ` --lane ${lane}` : ''}${briefArgs} --as ${who}`,
+    `It prints the protocol, your role instructions, ${lane ? 'your lane, ' : ''}the manifest essentials and the state you need. Follow them exactly.`,
   ].join('\n')
 }
 
@@ -138,8 +137,8 @@ const scopePrompt = (lane, round, ctx) => [
 ].join('\n\n')
 
 const planPrompt = (lane, round, brief, ctx) => [
-  header('plan', round, `${lane}/plan`, lane),
-  `Scope brief: ${INV}/${brief.brief_path}\nScope summary: ${brief.summary}`,
+  header('plan', round, `${lane}/plan`, lane, ` --round ${round}`),
+  `Scope summary: ${brief.summary}   (the full scope brief is included in your brief output)`,
   `At most ${B.max_tasks_per_lane_round} queued tasks. New task ids: ${lane}-r${pad(round)}-01, -02, ...`,
   `In flight (leave out of the plan): ${ctx.inflight.join(', ') || 'none'}`,
   `Save with: ${BOARD} plan save --lane ${lane} --round ${round} --inflight "${ctx.inflight.join(',')}" --as ${lane}/plan <<'EOF' {json} EOF`,
@@ -157,24 +156,21 @@ const investigatorPrompt = (t, round, rev) => [
 ].join('\n\n')
 
 const challengerPrompt = (t, round, n, allowRevise) => [
-  header('challenger', round, `${t.lane}/challenger`, t.lane),
+  header('challenger', round, `${t.lane}/challenger`, t.lane, ` --task ${t.id}`),
   `Review task ${t.id} — ${t.title}   (verify level: ${t.verify}, review ${n})`,
-  `Inspect with: ${BOARD} task show --id ${t.id}`,
   `Allowed verdicts: ${allowRevise ? 'accept | revise | redo' : 'accept | redo  (no revisions left)'}`,
   `Record it with: ${BOARD} task review --id ${t.id} --verdict V --summary S [--objection O ...] --as ${t.lane}/challenger`,
 ].join('\n\n')
 
 const salvagePrompt = (t, round, why) => [
-  header('salvage', round, `skunkworks/salvage-${t.id}`, null),
+  header('salvage', round, `skunkworks/salvage-${t.id}`, null, ` --task ${t.id}`),
   `Task ${t.id} (lane ${t.lane}) lost its agent: ${why}.`,
-  `Inspect with: ${BOARD} task show --id ${t.id}   and   ${BOARD} leftovers --lane ${t.lane}`,
 ].join('\n\n')
 
 const synthPrompt = (round, results) => [
-  header('synthesizer', round, 'synthesizer', null),
+  header('synthesizer', round, 'synthesizer', null, ` --round ${round}`),
   `Lanes: ${LANES.join(', ')}`,
   `Tasks finished since the last synthesis: ${results.map(r => `${r.id}=${r.status}`).join(', ') || 'none'}`,
-  `Start with: ${BOARD} query --lane all --round ${round}   then widen as needed.`,
 ].join('\n\n')
 
 const judgePrompt = (round, stall) => [

@@ -3,8 +3,9 @@
 You are one short-lived agent in a larger investigation. You remember nothing after you
 return — **the files are the memory**. Other agents are running at the same time.
 
-`$BOARD` below means the exact `Board CLI` command given in your prompt
-(`python3 <investigation>/bin/board.py`). Paths are relative to the investigation directory.
+`$BOARD` below means the `Board CLI` path given in your prompt — a single executable
+(`<investigation>/bin/board.py`); run it directly or keep it in a variable (`B=<path>; $B status`).
+Paths are relative to the investigation directory. `$BOARD --help` and `$BOARD <cmd> --help` list every option.
 
 ## Ground rules
 
@@ -18,9 +19,8 @@ return — **the files are the memory**. Other agents are running at the same ti
    --status --grep --round --limit`), `grep`/`rg`, and read files only as far as needed.
    Your final answer is small; detail goes in files and board entries.
 4. **The manifest is binding.** `manifest.json` holds scope (in/out), resources (how to
-   access each), **safety rules (hard constraints)** and success criteria. Read the parts
-   you need: `python3 -c "import json;print(json.dumps(json.load(open('<inv>/manifest.json'))['safety'],indent=1))"`
-   or just read the file — it is short.
+   access each), **safety rules (hard constraints)** and success criteria. Your brief prints
+   the essentials; `manifest.json` has the full text.
 5. **Side effects.** Before starting anything that outlives a single command (server,
    background process, container, remote temp dir, port binding), record it:
    `task started --id T --what "..." --stop "<exact command that undoes it>"`.

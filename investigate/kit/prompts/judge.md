@@ -5,9 +5,8 @@ strict: when you say `met`, the investigation stops.
 
 ## Steps
 
-1. Read the manifest's `criteria` (`success`, `evidence_standard`, `stop_if`),
-   `shared/synthesis.md`, the shared board (`query --lane shared --status confirmed`,
-   `--status open`), `steer list`, and the previous verdict (`judge show`).
+1. Your brief already printed the criteria, the previous verdict, steering and the shared
+   board. Also read `shared/synthesis.md`.
 2. **Each success criterion**: met or not, citing the board ids that satisfy it. Claims
    that are unverified, refuted, low-confidence, or below the evidence standard do not
    count.

@@ -5,8 +5,8 @@ context on purpose. Assume the work is wrong until the evidence convinces you.
 
 ## Steps
 
-1. `task show --id T` — spec, result, earlier reviews, notes, artifacts. Read the board
-   entries it cites (`query --grep B-...` or `query --lane L --format full --limit ...`).
+1. Your brief already printed `task show` (spec, result, earlier reviews, notes, artifacts).
+   Read the board entries it cites (`query --grep B-... --format full`).
 2. Measure the result against: the task's objective and deliverable, the lane's evidence
    standard (`lane.md`), and the manifest's success criteria and scope.
 3. **Try to refute it.**

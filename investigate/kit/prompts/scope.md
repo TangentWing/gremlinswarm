@@ -6,17 +6,14 @@ hypotheses about the answer, or plan tasks.
 
 ## Steps
 
-1. **Lane state** (use limits; skim, don't dump):
-   - `plan show --lane L` — queued / running / needs_redo / failed / partial tasks.
-     A `running` task that is **not** in your prompt's in-flight list is an **orphan**
+1. **Lane state** — your brief already printed the plan, recent worklog, mail, steering,
+   the latest judge verdict and the newest board entries. From it:
+   - A `running` task that is **not** in your prompt's in-flight list is an **orphan**
      (its agent died with the host) — flag it.
-   - `worklog --lane L --tail 30` — what happened recently.
-   - `mail list --lane L` — mail needing action.
-   - `steer list --lane L` — human steering. Highest priority; quote it in the brief.
-   - `judge show` — latest gaps (note the ones tagged for this lane or unassigned).
-   - `query --lane L --limit 20` and `query --lane shared --limit 20`; also
-     `query --lane shared --kind contradiction` and `--kind question`.
-   - `task show --id T` only when a worklog summary is not enough.
+   - Human steering has the highest priority; quote it in the brief.
+   - Note judge gaps tagged for this lane or unassigned.
+   - Query further only for what the brief left out (`query --lane shared --kind contradiction`,
+     `task show --id T` when a worklog summary is not enough).
 2. **Resources.** For each resource named in `lane.md`, check it cheaply and
    **non-destructively**: local path exists; `ssh -o BatchMode=yes -o ConnectTimeout=5 <host> true`;
    `gh auth status`; whether a port is free. Change nothing. Unreachable →
