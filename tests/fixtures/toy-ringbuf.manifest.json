@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "slug": "toy-ringbuf",
+  "title": "Moving average drifts low after warm-up (smoke test)",
+  "goal": "Find the root cause of the moving average reading low once the window fills, locate it to file:line, and decide whether test_constant_signal encodes a bug.",
+  "question": "Why does MovingAverage read ~20% low for a steady signal once the window is full?",
+  "scope": {
+    "in": ["examples/toy-ringbuf/"],
+    "out": ["fixing the code (investigation only)", "anything outside examples/toy-ringbuf/"],
+    "notes": "Read-only on the source files. Experiments are throwaway Python snippets run from the task directory."
+  },
+  "targets": [
+    {"name": "toy", "path": "__TOY_ROOT__", "notes": "tiny Python package with a bug report"}
+  ],
+  "resources": [
+    {"name": "toy_repo", "kind": "local-repo", "access": "__TOY_ROOT__", "exclusive": false,
+     "notes": "Read-only. Run python from a task directory with PYTHONPATH pointing here."}
+  ],
+  "safety": [
+    "Never modify files under examples/toy-ringbuf/.",
+    "Only run python3 snippets and the unit tests; no network, no installs."
+  ],
+  "criteria": {
+    "success": [
+      "Root cause located to a specific file:line with an explanation of the mechanism.",
+      "A reproducer (command + observed output) demonstrating the drift.",
+      "A verdict on whether test_constant_signal's expected value is correct."
+    ],
+    "evidence_standard": "Runtime claims need a command and its output; code claims need file:line.",
+    "stop_if": []
+  },
+  "lanes": [
+    {"name": "static", "mandate": "Read ringbuf.py, stats.py and the tests; trace the data flow and locate faulty logic.",
+     "resources": ["toy_repo"], "verify_default": "light", "evidence_standard": "Cite file:line for every claim."},
+    {"name": "experiments", "mandate": "Write and run small Python snippets against the package to reproduce and characterise the symptom.",
+     "resources": ["toy_repo"], "verify_default": "light", "evidence_standard": "Record exact commands and output."},
+    {"name": "skunkworks", "mandate": "Generalist: unroutable requests, cross-lane asks, salvage of failed work.",
+     "resources": ["toy_repo"], "verify_default": "light"}
+  ],
+  "budget": {
+    "max_concurrent": 4,
+    "rounds_per_checkpoint": 1,
+    "max_rounds": 3,
+    "max_agents_per_segment": 14,
+    "max_tasks_per_lane_round": 1,
+    "verify_rounds": 2,
+    "max_children": 0,
+    "stall_rounds": 2
+  },
+  "models": {},
+  "effort": {"scope": "low", "checkpoint": "low", "synthesizer": "medium"},
+  "agent_types": {}
+}
