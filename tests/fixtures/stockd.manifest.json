@@ -5,20 +5,49 @@
   "goal": "Find the root cause of stockd overselling inventory, identify the commit that introduced it, and determine whether the worker-count change is a cause or an amplifier. Investigation only.",
   "question": "Why does stockd reserve more units than exist, which change introduced it, and what is the production impact?",
   "scope": {
-    "in": ["__TARGET_ROOT__/repo (source, tests, git history)", "__TARGET_ROOT__/logs (August production logs)", "__TARGET_ROOT__/BUGREPORT.md"],
-    "out": ["fixing the bug (a proposed patch in a task directory is fine; never commit)", "anything outside __TARGET_ROOT__ and the investigation directory"],
-    "notes": "Read the bug report first. The repo is shared by all lanes: never check out other commits in it — clone it into your task directory (git clone __TARGET_ROOT__/repo <task dir>/repo) for bisecting, instrumentation or patches."
+    "in": [
+      "__TARGET_ROOT__/repo (source, tests, git history)",
+      "__TARGET_ROOT__/logs (August production logs)",
+      "__TARGET_ROOT__/BUGREPORT.md"
+    ],
+    "out": [
+      "fixing the bug (a proposed patch in a task directory is fine; never commit)",
+      "anything outside __TARGET_ROOT__ and the investigation directory"
+    ],
+    "notes": "Read the bug report first. The repo is shared by all lanes: never check out other commits in it \u2014 clone it into your task directory (git clone __TARGET_ROOT__/repo <task dir>/repo) for bisecting, instrumentation or patches."
   },
   "targets": [
-    {"name": "stockd", "path": "__TARGET_ROOT__/repo", "notes": "Python stdlib HTTP service; tests: python3 -m unittest discover -s tests -t ."}
+    {
+      "name": "stockd",
+      "path": "__TARGET_ROOT__/repo",
+      "notes": "Python stdlib HTTP service; tests: python3 -m unittest discover -s tests -t ."
+    }
   ],
   "resources": [
-    {"name": "stockd_repo", "kind": "local-repo", "access": "__TARGET_ROOT__/repo", "exclusive": false,
-     "notes": "Read-only. Never modify files or check out other commits here; clone it into your task directory."},
-    {"name": "stockd_logs", "kind": "logs", "access": "__TARGET_ROOT__/logs/stockd-2026-08-DD.log (30 files)", "exclusive": false,
-     "notes": "Read-only production logs."},
-    {"name": "port_8765", "kind": "port", "access": "127.0.0.1:8765", "exclusive": true,
-     "notes": "The integration test and the service bind this fixed port. Only a task holding this claim may run tests/test_integration.py or start the server."}
+    {
+      "name": "stockd_repo",
+      "kind": "local-repo",
+      "access": "__TARGET_ROOT__/repo",
+      "exclusive": false,
+      "notes": "Read-only. Never modify files or check out other commits here; clone it into your task directory.",
+      "check": "git -C __TARGET_ROOT__/repo rev-parse HEAD"
+    },
+    {
+      "name": "stockd_logs",
+      "kind": "logs",
+      "access": "__TARGET_ROOT__/logs/stockd-2026-08-DD.log (30 files)",
+      "exclusive": false,
+      "notes": "Read-only production logs.",
+      "check": "ls __TARGET_ROOT__/logs/stockd-2026-08-01.log >/dev/null"
+    },
+    {
+      "name": "port_8765",
+      "kind": "port",
+      "access": "127.0.0.1:8765",
+      "exclusive": true,
+      "notes": "The integration test and the service bind this fixed port. Only a task holding this claim may run tests/test_integration.py or start the server.",
+      "check": "python3 -c \"import socket; socket.socket().bind(('127.0.0.1', 8765))\""
+    }
   ],
   "safety": [
     "Never modify, commit in, or check out other commits in __TARGET_ROOT__/repo; work in a clone inside your task directory.",
@@ -31,23 +60,62 @@
       "Root cause located to file:line with a mechanism that explains why the failure is intermittent.",
       "A reproducer with a measured failure rate (at least 10 runs), compared with a baseline commit that does not fail.",
       "The introducing commit identified, with evidence that accounts for the test being flaky (repeated runs per bisect step).",
-      "Log correlation: when reconciliation mismatches first appear relative to deploys, and a verdict — with evidence — on whether the 4 -> 16 worker change is the cause or an amplifier.",
+      "Log correlation: when reconciliation mismatches first appear relative to deploys, and a verdict \u2014 with evidence \u2014 on whether the 4 -> 16 worker change is the cause or an amplifier.",
       "A production impact estimate, which needs the production request mix that only the human can supply."
     ],
     "evidence_standard": "Runtime claims need exact commands, run counts and pass/fail tallies; flaky-test claims are never based on a single run. Log claims cite file and line. Static-only claims must say so and carry at most 'med' confidence.",
-    "stop_if": ["The integration test cannot be made to fail at any commit after two dedicated attempts."]
+    "stop_if": [
+      "The integration test cannot be made to fail at any commit after two dedicated attempts."
+    ]
   },
   "lanes": [
-    {"name": "static", "mandate": "Read stockd's source and tests; trace the reservation path and locate concurrency defects.",
-     "resources": ["stockd_repo"], "verify_default": "adversarial", "evidence_standard": "Cite file:line for every claim."},
-    {"name": "logs", "mandate": "Mine the August production logs: deploys, reconciliation mismatches, slow requests; correlate them over time.",
-     "resources": ["stockd_logs"], "verify_default": "light", "evidence_standard": "Cite log file and line; give counts per day."},
-    {"name": "repro", "mandate": "Reproduce the oversell by running the integration test and custom load against the service, and measure failure rates.",
-     "resources": ["stockd_repo", "port_8765"], "verify_default": "light", "evidence_standard": "Exact commands, run counts, pass/fail tallies."},
-    {"name": "history", "mandate": "Use git history (log, diff, bisect with repeated runs per step) in a clone to find the commit that introduced the defect.",
-     "resources": ["stockd_repo", "port_8765"], "verify_default": "adversarial", "evidence_standard": "Record each bisect step's commit and pass/fail tallies."},
-    {"name": "skunkworks", "mandate": "Generalist: unroutable requests, cross-lane asks, salvage of failed work, odd jobs no other lane owns.",
-     "resources": ["stockd_repo", "stockd_logs"], "verify_default": "light"}
+    {
+      "name": "static",
+      "mandate": "Read stockd's source and tests; trace the reservation path and locate concurrency defects.",
+      "resources": [
+        "stockd_repo"
+      ],
+      "evidence_standard": "Cite file:line for every claim.",
+      "archetype": "static-trace"
+    },
+    {
+      "name": "logs",
+      "mandate": "Mine the August production logs: deploys, reconciliation mismatches, slow requests; correlate them over time.",
+      "resources": [
+        "stockd_logs"
+      ],
+      "evidence_standard": "Cite log file and line; give counts per day.",
+      "archetype": "log-mining"
+    },
+    {
+      "name": "repro",
+      "mandate": "Reproduce the oversell by running the integration test and custom load against the service, and measure failure rates.",
+      "resources": [
+        "stockd_repo",
+        "port_8765"
+      ],
+      "evidence_standard": "Exact commands, run counts, pass/fail tallies.",
+      "archetype": "repro-experiment"
+    },
+    {
+      "name": "history",
+      "mandate": "Use git history (log, diff, bisect with repeated runs per step) in a clone to find the commit that introduced the defect.",
+      "resources": [
+        "stockd_repo",
+        "port_8765"
+      ],
+      "evidence_standard": "Record each bisect step's commit and pass/fail tallies.",
+      "archetype": "bisect"
+    },
+    {
+      "name": "skunkworks",
+      "mandate": "Generalist: unroutable requests, cross-lane asks, salvage of failed work, odd jobs no other lane owns.",
+      "resources": [
+        "stockd_repo",
+        "stockd_logs"
+      ],
+      "archetype": "skunkworks"
+    }
   ],
   "budget": {
     "max_concurrent": 4,
@@ -60,6 +128,26 @@
     "stall_rounds": 2
   },
   "models": {},
-  "effort": {"scope": "low", "checkpoint": "low", "synthesizer": "medium"},
-  "agent_types": {}
+  "effort": {
+    "scope": "low",
+    "checkpoint": "low",
+    "synthesizer": "medium"
+  },
+  "agent_types": {
+    "scope": "investigate:scope",
+    "plan": "investigate:plan",
+    "investigator": "investigate:investigator",
+    "challenger": "investigate:challenger",
+    "salvage": "investigate:salvage",
+    "synthesizer": "investigate:synthesizer",
+    "judge": "investigate:judge",
+    "refuter": "investigate:refuter",
+    "checkpoint": "investigate:checkpoint"
+  },
+  "safety_deny": [
+    "git\\s+-C\\s+__TARGET_ROOT__/repo\\s+(checkout|switch|reset|bisect|stash|commit|clean)",
+    "cd\\s+__TARGET_ROOT__/repo\\s*(&&|;)\\s*git\\s+(checkout|switch|reset|bisect|stash|commit|clean)",
+    "\\bgit\\s+push\\b"
+  ],
+  "writable": []
 }
