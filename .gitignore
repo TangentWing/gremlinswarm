@@ -1,0 +1,11 @@
+# local Claude Code settings (permissions granted on this machine)
+.claude/settings.local.json
+
+# generated investigation runs (rebuild smoke tests with tests/make_smoke.sh)
+investigations/
+
+# board.py lock files and Python caches
+.*.lock
+__pycache__/
+*.pyc
+.DS_Store
