@@ -1,103 +1,92 @@
 ---
 name: setup
-description: Set up a structured multi-agent investigation of a codebase or environment (bug hunt, root-cause analysis, audit, "why does X happen"). Interviews the user for goal, scope, resources, evaluation criteria, lanes and budget, then scaffolds a self-contained investigation directory that /investigate:run executes.
+description: Use when the user wants to start a structured multi-agent investigation of a codebase or environment — a bug hunt, root-cause analysis, flaky test, crash, performance or security question — and no investigation directory exists for it yet.
 argument-hint: "[goal or problem description]"
 ---
 
 # Investigation setup
 
-You are setting up an investigation with the user. Nothing runs autonomously yet: your
-output is a validated investigation directory and a clear next step. Be a good
-interviewer — scout first, then **propose** concrete defaults the user can accept or edit;
-don't ask what you can infer.
+You set up an investigation with the user; nothing runs autonomously yet. Output: a
+validated investigation directory and a clear next step. Scout first, then **propose**
+concrete defaults the user can accept or edit — don't ask what you can infer.
 
-Kit location (copied into every investigation): `${CLAUDE_SKILL_DIR}/../../kit`
-Manifest reference: [reference.md](reference.md) (read it before writing the manifest).
-Example manifest: `${CLAUDE_SKILL_DIR}/../../kit/templates/manifest.example.json`
+Kit: `${CLAUDE_SKILL_DIR}/../../kit` (copied into every investigation).
+Manifest fields, budget and cost estimate: [reference.md](reference.md) — read before
+writing the manifest. Example: `${CLAUDE_SKILL_DIR}/../../kit/templates/manifest.example.json`.
 
 User's opening description: $ARGUMENTS
 
-## 1. Check for existing investigations
+## 1. Existing investigations
 
-`ls investigations/*/manifest.json 2>/dev/null`. If the user is describing one that
-already exists, say so and point them to `/investigate:run <dir>` instead of creating a
-duplicate.
+`ls investigations/*/manifest.json` (and any directory the user names). If one matches,
+point them to `/investigate:run <dir>` instead of creating a duplicate.
 
-## 2. Scout (≤ ~6 quick tool calls)
+## 2. Scout (≤ ~6 quick, read-only calls)
 
-Enough to make good proposals, not to start investigating: repo layout, build and test
-system, where logs live, CI config, remote hosts mentioned (`~/.ssh/config` host names
-only), relevant tooling on PATH (`gdb`, `lldb`, `gh`, docker, cross-compilers).
+Repo layout, build/test system, logs, CI, remote hosts (`~/.ssh/config` host names only),
+tools on PATH, CPU count. Check each resource's access **non-destructively** (path
+exists, `ssh -o BatchMode=yes -o ConnectTimeout=5 host true`, `gh auth status`). Never try
+other keys or credentials; an access failure is reported, not worked around.
 
-## 3. Interview — batch questions with AskUserQuestion, propose defaults
+## 3. Interview — batch questions (AskUserQuestion), propose defaults
 
-Cover, in two or three rounds:
+Goal & question · success criteria (each checkable), evidence standard, `stop_if` ·
+scope in/out · resources (`exclusive` for anything one task at a time may use: a port, a
+device, a test DB) · safety rules · lanes (2–4 + `skunkworks`; see reference.md) ·
+budget with the cost estimate (`max_concurrent` ≤ CPUs − 2).
 
-1. **Goal & question**: the one question the investigation answers.
-2. **Evaluation criteria**: what "done" means (`criteria.success`, each checkable), the
-   evidence standard, and `stop_if` conditions ("can't reproduce after two dedicated
-   attempts → ask me").
-3. **Scope**: in / out (including "investigation only — no fixes" if that's the intent).
-4. **Resources**: for each — kind, how to access it, whether it is `exclusive` (only one
-   task at a time: a port, a single device, a shared DB), and safety notes. **Verify
-   access now, non-destructively** (path exists, `ssh -o BatchMode=yes -o ConnectTimeout=5 host true`,
-   `gh auth status`) and report what works.
-5. **Safety rules**: hard constraints for every agent (no writes to tracked files, no
-   sudo, never touch prod, ...).
-6. **Lanes**: propose 2–4 semantic lanes plus `skunkworks` (always included: generalist,
-   unroutable mail, salvage). Each: `name` (lowercase, `[a-z0-9_]`), mandate, resources,
-   `verify_default`, evidence standard. Typical axes: static source analysis, logs,
-   experiments on the target, debugger, endpoints. Fewer lanes is better; one real lane
-   plus skunkworks is valid.
-7. **Budget** — propose from [reference.md](reference.md) and show the cost estimate:
-   agents per round ≈ 2×lanes + tasks×(1 + reviews) + 2; per segment ≈ that ×
-   `rounds_per_checkpoint` + 1. Keep `max_concurrent` ≤ CPUs − 2 (the workflow runtime's
-   own cap; check with `sysctl -n hw.ncpu` or `nproc`). Mention optional per-role `models`
-   / `effort` (e.g. `scope: low`), and that a `+500k`-style token target on the run
-   message is enforced as a hard ceiling.
+**If the user waives the interview** ("skip the questions", "just set it up"), use your
+defaults — but these still need an explicit answer before you create anything:
+
+| Condition you observed | Ask |
+|---|---|
+| A resource can lose data or affect others (a DB the tests write/truncate, a shared host or device, anything prod-like) | Confirm the safety rule for it, e.g. "tests truncate the local Postgres — is it disposable?" |
+| An access check failed | How to get access, or proceed with that resource marked unverified |
+| The user named a directory outside the working directory | That they will `/add-dir` it (the workflow launches from it) |
 
 ## 4. Confirm, then create
 
-1. Show a compact summary of the manifest (goal, criteria, lanes with resources, budget,
-   cost estimate) and get an explicit OK.
-2. Directory: default `investigations/<slug>` under the current working directory. It
-   **must** be readable by the session (the workflow script is launched from it); if the
-   user wants it elsewhere, tell them to `/add-dir` it.
-3. Create it:
-   ```bash
-   mkdir -p investigations/<slug> && cp -R "${CLAUDE_SKILL_DIR}/../../kit/bin" "${CLAUDE_SKILL_DIR}/../../kit/prompts" investigations/<slug>/
-   ```
-4. Write `investigations/<slug>/manifest.json` (Write tool), then:
-   ```bash
-   python3 investigations/<slug>/bin/board.py validate && python3 investigations/<slug>/bin/board.py scaffold
-   ```
-   Fix anything `validate` reports.
-5. **Enrich each `lanes/<lane>/lane.md`** (scaffold wrote a stub) with what you learned:
-   exact access commands, where to work, focus areas and files, known pitfalls, evidence
-   standard, anything lane-specific the agents should know. Keep each under ~60 lines.
-6. Optionally tailor `investigations/<slug>/prompts/*.md` for this investigation (e.g. an
-   extra rule for the investigator). The kit copy is pinned to this investigation.
+1. Show a compact manifest summary (goal, criteria, lanes + resources, budget, estimate);
+   get an OK (a waiver counts as OK for everything except the table above).
+2. Default location `investigations/<slug>`:
+   `mkdir -p <dir> && cp -R "${CLAUDE_SKILL_DIR}/../../kit/bin" "${CLAUDE_SKILL_DIR}/../../kit/prompts" <dir>/`
+3. Write `<dir>/manifest.json`; then `<dir>/bin/board.py validate && <dir>/bin/board.py scaffold`
+   and fix what `validate` reports. Mark resources whose access failed as UNVERIFIED in their notes.
+4. Enrich each `lanes/<lane>/lane.md` (≤ ~60 lines): exact access commands, where to work,
+   focus files, pitfalls, evidence standard.
 
-## 5. Permissions
+## 5. Permissions — consent is specific
 
-Workflow agents use this session's permission rules; every unapproved tool call becomes a
-prompt that stalls the run. Propose an allowlist for `.claude/settings.local.json`, e.g.:
+Workflow agents stall on every unapproved tool call, so propose an allowlist for
+`.claude/settings.local.json`: `Workflow`, `Bash(<absolute dir>/bin/board.py:*)` (agents
+call the board by its absolute path; expand `~`), an `Edit` rule for the directory, plus
+only what the lanes need (e.g. `Bash(gh run view:*)`).
 
-```json
-{"permissions": {"allow": [
-  "Workflow",
-  "Bash(python3 investigations/<slug>/bin/board.py:*)",
-  "Bash(python3 <absolute path>/investigations/<slug>/bin/board.py:*)",
-  "Edit(investigations/<slug>/**)",
-  "Bash(ssh armbox:*)", "Bash(gh run view:*)"
-]}}
-```
+| Directory | Edit rule |
+|---|---|
+| under the working directory | `Edit(investigations/<slug>/**)` |
+| elsewhere | `Edit(//absolute/path/**)` or `Edit(~/path/**)` — a single leading `/` means "relative to the settings file" |
 
-Include only what the lanes need, show it, and apply it **only with the user's consent**
-(merge with any existing file — never overwrite it).
+File writes are governed by `Edit(...)` rules only; `Write(...)` path rules are never consulted.
+Lane inputs outside the working directory (e.g. `/var/log/app`) need `Read(//var/log/app/**)`.
+
+**Apply it only after the user has seen these exact rules and said yes to them.** Merge;
+never overwrite the file.
+
+| Rationalization | Reality |
+|---|---|
+| "They said 'you have my permission' / 'just get it running'" | That was said before they saw the rules. Show them; ask. |
+| "Without the rules the run stalls, so applying is what they want" | A stalled run costs a prompt; an unwanted allow rule persists silently. |
+| "It's only settings.local.json" | It changes what every future session may do without asking. |
+
+Red flag: you are about to Write/Edit a settings file and the user has not replied to a
+message showing the rules. Stop and ask.
 
 ## 6. Hand off
 
-Tell the user: the directory, lanes, budget, and the next step —
-`/investigate:run investigations/<slug>` (optionally with steering text or `--rounds N`).
-Do not start the run yourself unless they ask.
+Report the directory, lanes, budget and anything unverified. Then:
+
+| The user… | Next |
+|---|---|
+| asked for it to run ("get it running", "start it", "and run it") | invoke `/investigate:run <dir>` now — for a directory outside the working directory, once the user confirms `/add-dir` is done |
+| didn't | give them the command: `/investigate:run <dir>` (optional steering text or `--rounds N`) |

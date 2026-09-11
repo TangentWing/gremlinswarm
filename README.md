@@ -46,7 +46,8 @@ Then `/investigate:setup` in the repository you want to investigate.
 
 To keep a run from stalling on permission prompts, allow the board CLI and the
 investigation directory (setup proposes this for you), e.g. in `.claude/settings.local.json`:
-`"Workflow"`, `"Bash(python3 investigations/<slug>/bin/board.py:*)"`, `"Edit(investigations/<slug>/**)"`.
+`"Workflow"`, `"Bash(/absolute/path/investigations/<slug>/bin/board.py:*)"` (agents call the
+board CLI by its absolute path), `"Edit(investigations/<slug>/**)"`.
 
 ## Test
 
