@@ -63,10 +63,12 @@ prompts can be tailored per investigation.
     scheduler: tasks run as soon as their lane's plan lands, subject to
       global concurrency, exclusive claims, deps
       task chain: investigator → [challenger → (revise → challenger)*] 
+                  sweep: item agents (parallel, or serial on an exclusive claim) → reducer → verify
                   investigator died → salvage agent
     round ends when all short tasks done (long ones may continue)
     synthesize ── dedupe / contradictions / irrelevance / promote to shared
     judge      ── criteria vs shared board → met / progress / gaps
+    met?       ── refuter tries to overturn it; refuted → objections become gaps, continue
   drain in-flight → checkpoint agent (cleanup leftovers, write report)
 ◄── report + open questions ── user steers ── /investigate:run again
 ```
@@ -190,7 +192,38 @@ streaming input.
 - The synthesizer maintains `shared/synthesis.md`; the checkpoint writes `report.md` and
   `reports/after-round-NN.md`.
 
-## 10. Known v1 limits
+## 10. Roles, enforcement and templates
+
+**Role agents** (`investigate/agents/*.md`, one per role). Each workflow `agent()` call passes
+`agentType: investigate:<role>` (via manifest `agent_types`), which gives per-role
+`disallowedTools` and `maxTurns` and a shared system prompt per role (prompt-cache friendly).
+The agent body is deliberately short — "run `brief` first, return structured output" —
+because it *replaces* the system prompt; real instructions stay in the per-investigation
+prompt pack so they remain pinned and editable per investigation. Plugin agents cannot carry
+hooks (Claude Code ignores `hooks`/`mcpServers`/`permissionMode` in plugin agents).
+
+**Guard hook** (`investigate/hooks/`, plugin-level, so it also runs inside subagents). It
+acts only on agents whose own transcript begins with an investigation prompt:
+- `PreToolUse`: Edit/Write only inside the investigation directory or `writable`; Bash
+  commands matching the manifest's `safety_deny` regexes are blocked (exit 2 + reason).
+- `SubagentStop`: an investigator cannot stop before `task finish` (or `task item` for a
+  sweep item); a judge cannot stop before `judge save`. `stop_hook_active` prevents loops.
+It fails open and is a seatbelt, not a sandbox (shell redirection can still write).
+
+**Lane archetypes** (`kit/archetypes/*.md`): frontmatter (summary, use_when, resource
+kinds, verify default, task kinds) + a `lane.md` template. Setup picks archetypes; `scaffold`
+renders each lane's `lane.md`. Authoring guide and template: `kit/archetypes/README.md`.
+
+**Resource probes**: `resources[].check` commands; `board.py probe` runs them; the scope
+agent's brief includes its lane's probe results every round.
+
+**Confirm met**: a `met` verdict stops everything, so a fresh refuter must fail to
+overturn it (`board.py judge refute` turns objections into gaps and reopens).
+
+**Sweeps**: `kind: sweep` + `items[]` (≤ `max_sweep_items`) → one agent per item, then a
+reducer; replaces "one investigator with two children" for many-unit work.
+
+## 11. Known v1 limits
 
 - No per-agent timeout; a hung agent is stopped by hand in `/workflows` (→ salvage).
 - Workflow resume is same-session only; cross-session continuity comes from the

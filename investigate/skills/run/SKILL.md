@@ -43,7 +43,10 @@ opt-in to running the investigation workflow.
 
 ## 3. Launch
 
-1. `$BOARD wf-args [--rounds N]` → a JSON object.
+1. `$BOARD wf-args [--rounds N]` → a JSON object. If its `agent_types` name `investigate:*`
+   agents that are not among your available agent types (the plugin isn't loaded in this
+   session), re-run with `--no-agent-types` and tell the user this run uses plain workflow
+   agents: no per-role tool restrictions or turn caps.
 2. **Workflow** tool: `scriptPath` = `<absolute dir>/bin/investigate.js`, `args` = that JSON
    **as an object**, not a string. No `resumeFromRunId` (see Recovery).
 3. Tell the user: rounds, lanes, agent cap, and that `/workflows` shows progress (a stuck

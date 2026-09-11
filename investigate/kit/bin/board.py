@@ -433,7 +433,10 @@ def render_lane_md(root: Path, m: dict, lane: dict) -> str:
 
 
 def cmd_archetypes(args):
-    root = inv_root(args)
+    try:
+        root = inv_root(args)
+    except BoardError:  # browsing the kit itself (e.g. during setup), no investigation yet
+        root = Path(__file__).resolve().parent.parent
     files = archetype_files(root)
     if not files:
         die(f"no archetypes in {root / 'archetypes'}")
@@ -1249,7 +1252,7 @@ def cmd_wf_args(args):
         "budget": budget,
         "models": {k: v for k, v in (m.get("models") or {}).items() if v},
         "effort": {k: v for k, v in (m.get("effort") or {}).items() if v},
-        "agent_types": {k: v for k, v in (m.get("agent_types") or {}).items() if v},
+        "agent_types": {} if args.no_agent_types else {k: v for k, v in (m.get("agent_types") or {}).items() if v},
     }
     print(json.dumps(out, indent=1))
 
@@ -1289,6 +1292,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--json", action="store_true")
     s = sp("wf-args", cmd_wf_args)
     s.add_argument("--rounds", type=int)
+    s.add_argument("--no-agent-types", action="store_true",
+                   help="omit agent_types (run on default workflow subagents, e.g. when the plugin's agents aren't loaded)")
 
     s = sp("post", cmd_post)
     s.add_argument("--lane", required=True)
