@@ -100,19 +100,29 @@ function opts(role, o) {
   return x
 }
 
+// A run of consecutive dead agents means the API itself is failing (rate or session
+// limit, outage) rather than one bad task: stop spending agents and checkpoint.
+const FAIL_STOP = Math.max(3, LANES.length)
+let failStreak = 0
+const systemic = () => failStreak >= FAIL_STOP
+
 // Every agent goes through here: global concurrency pool + agent accounting.
 // Returns null (never throws) so callers treat budget exhaustion like a dead agent.
 async function run(prompt, o) {
+  if (systemic()) return null
   agentsUsed++
   await acquire()
+  let r = null
   try {
-    return await agent(prompt, o)
+    r = await agent(prompt, o)
   } catch (e) {
     log(`agent ${o.label} errored: ${String(e).slice(0, 200)}`)
-    return null
   } finally {
     release()
   }
+  failStreak = r ? 0 : failStreak + 1
+  if (failStreak === FAIL_STOP) log(`${FAIL_STOP} consecutive agent failures — likely an API, rate or session limit; stopping this segment.`)
+  return r
 }
 
 // ------------------------------------------------------------------ prompts
@@ -257,6 +267,7 @@ function whyBlocked(t) {
   const ds = depState(t)
   if (ds === 'wait') return `waiting on deps ${t.deps.join(',')}`
   if (!claimsFree(t)) return `resource busy: ${exclusiveOf(t).filter(r => held.has(r)).join(',')}`
+  if (systemic()) return 'agents failing (API / rate / session limit)'
   if (capHit) return 'agent cap for this segment'
   if (tokenStop) return 'token budget'
   return 'dependency cycle or no slot'
@@ -289,6 +300,7 @@ function pump(round) {
       continue
     }
     if (ds === 'wait' || !claimsFree(t) || inflight.size >= B.max_concurrent) { i++; continue }
+    if (systemic()) { i++; continue }
     if (!canAfford(1) || tokenLow()) { if (!tokenStop) capHit = true; i++; continue }
     pending.splice(i, 1)
     start(t, round)
@@ -366,6 +378,7 @@ for (; round <= last && reason === 'checkpoint'; round++) {
   await Promise.all(planning)
   const deferred = pending.splice(0).map(t => { log(`${t.id}: deferred — ${whyBlocked(t)}`); return t.id })
   deferredPrev = deferred
+  if (systemic()) { reason = 'error'; break }
 
   const results = sinceSynth
   sinceSynth = []
@@ -416,6 +429,9 @@ return {
   deferred: deferredPrev,
   lost,
   report_path: cp ? cp.report_path : null,
-  summary: cp ? cp.summary : 'checkpoint agent failed — run `board.py status` and read judge/ for the latest state',
+  summary: cp ? cp.summary
+    : reason === 'error'
+      ? 'Segment stopped: repeated agent failures (API, rate or session limit). No report was written and the round was not counted; relaunch with /investigate:run once the limit resets.'
+      : 'checkpoint agent failed — run `board.py status` and read judge/ for the latest state',
   open_questions: cp ? cp.open_questions : null,
 }

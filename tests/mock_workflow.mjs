@@ -33,7 +33,7 @@ const PLANS = {
   2: { static: ['static-r02-01'], experiments: ['experiments-r01-02'] },
 }
 
-function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => ({ met: r >= 2, progress: true }) } = {}) {
+function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => ({ met: r >= 2, progress: true }), failAll = false } = {}) {
   const logs = [], trace = []
   let active = 0, maxActive = 0
   const holders = new Map()      // exclusive resource -> task id (agent-level check)
@@ -54,6 +54,7 @@ function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => 
       holders.set(r, tid)
     }
     try {
+      if (failAll) { await sleep(2); return null } // terminal API error (rate / session limit)
       switch (role) {
         case 'scope': {
           await sleep(10)
@@ -177,6 +178,17 @@ await test('no rounds, checkpoint only', () => {
   assert.equal(past.result.reason, 'max_rounds'); assert.deepEqual(past.result.rounds_run, [])
   assert.equal(starts(past.trace, e => e.role !== 'checkpoint').length, 0)
 })
+
+console.log('== scenario: every agent fails (API / session limit)')
+const dead = await harness({ failAll: true })
+await test('stops with reason error instead of reporting a normal checkpoint', () => assert.equal(dead.result.reason, 'error'))
+await test('no synthesis or judge after a systemic failure', () => {
+  assert.equal(starts(dead.trace, e => e.role === 'synthesizer' || e.role === 'judge').length, 0)
+})
+await test('failed round is not counted as run', () => {
+  assert.deepEqual(dead.result.rounds_run, []); assert.equal(dead.result.next_round, 1)
+})
+await test('the failure is logged', () => assert.ok(dead.logs.some(l => /consecutive agent failures/.test(l)), dead.logs.join('\n')))
 
 console.log('== scenario: concurrency 1')
 const one = await harness({ args: { ...BASE_ARGS, budget: { ...BASE_ARGS.budget, max_concurrent: 1 } } })

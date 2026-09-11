@@ -57,6 +57,8 @@ No Workflow tool → workflows are disabled; tell the user to enable "Dynamic wo
 2. Present: stop reason (`checkpoint | met | stall | agent_cap | token_budget | max_rounds`),
    bottom line, confirmed findings with board ids, **questions** (record replies as in 2.2),
    "Needs your attention", suggested steering.
+   Stop reason `error` means agents were failing repeatedly (API, rate or session limit):
+   there is no report and the round was not counted — relaunch (step 3) once it clears.
 3. Ask: continue / steer (`steer add`) / change budget (edit `manifest.json` → `validate`) /
    stop. On continue, go straight to step 3 in this turn.
 
