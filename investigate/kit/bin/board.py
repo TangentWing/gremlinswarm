@@ -37,6 +37,9 @@ Quick reference (all commands accept --as AUTHOR and --inv PATH):
   judge save --round N [--file F]     judge show [--round N]
   segment close --start N --end M --reason R
   validate | scaffold | wf-args [--rounds N]
+  archetypes [--show NAME]            lane archetypes available to this investigation
+  probe [--lane L] [--resource R]     run resources' non-destructive `check` commands
+  brief --role R [--lane L] [--task T] [--round N]   everything an agent needs, in one call
 """
 from __future__ import annotations
 
@@ -289,8 +292,18 @@ def fmt_entry(e: dict, fmt: str) -> str:
 
 # ---------------------------------------------------------------- manifest
 
-def validate_manifest(m: dict) -> list[str]:
+def validate_manifest(m: dict, root: Path | None = None) -> list[str]:
     errs = []
+    archetypes = archetype_files(root) if root else {}
+    for l in m.get("lanes", []):
+        a = l.get("archetype")
+        if a and root and a not in archetypes:
+            errs.append(f"lane '{l.get('name')}' uses unknown archetype '{a}' (have: {', '.join(archetypes) or 'none'})")
+        elif a and root:
+            errs += archetype_errors(archetypes[a])
+    for r in m.get("resources", []):
+        if "check" in r and not isinstance(r["check"], str):
+            errs.append(f"resource '{r.get('name')}': check must be a shell command string")
     for k in ("slug", "goal", "criteria", "lanes", "resources"):
         if k not in m:
             errs.append(f"missing '{k}'")
@@ -315,7 +328,7 @@ def validate_manifest(m: dict) -> list[str]:
         for r in l.get("resources", []):
             if r not in res_names:
                 errs.append(f"lane '{n}' references unknown resource '{r}'")
-        if l.get("verify_default", "light") not in VERIFY:
+        if l.get("verify_default") and l["verify_default"] not in VERIFY:
             errs.append(f"lane '{n}' verify_default must be one of {sorted(VERIFY)}")
     if not m.get("criteria", {}).get("success"):
         errs.append("criteria.success must list at least one success criterion")
@@ -332,9 +345,141 @@ def validate_manifest(m: dict) -> list[str]:
     return errs
 
 
+# ---------------------------------------------------------------- archetypes
+
+ARCH_NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+ARCH_REQUIRED = ("name", "summary", "use_when", "resource_kinds", "verify_default", "task_kinds")
+
+
+def parse_archetype(path: Path) -> tuple[dict, str]:
+    """Split an archetype file into (frontmatter dict, body). Frontmatter is `key: value`
+    lines; `[a, b]` values become lists."""
+    text = path.read_text()
+    if not text.startswith("---\n") or "\n---\n" not in text[4:]:
+        raise BoardError(f"{path.name}: missing '---' frontmatter block")
+    fm_text, body = text[4:].split("\n---\n", 1)
+    fm = {}
+    for line in fm_text.splitlines():
+        if not line.strip():
+            continue
+        if ":" not in line:
+            raise BoardError(f"{path.name}: bad frontmatter line '{line}'")
+        k, v = (s.strip() for s in line.split(":", 1))
+        fm[k] = [x.strip() for x in v[1:-1].split(",") if x.strip()] if v.startswith("[") and v.endswith("]") else v
+    return fm, body
+
+
+def archetype_errors(path: Path) -> list[str]:
+    try:
+        fm, body = parse_archetype(path)
+    except BoardError as e:
+        return [str(e)]
+    errs = [f"{path.name}: missing '{k}'" for k in ARCH_REQUIRED if not fm.get(k)]
+    if fm.get("name") and fm["name"] != path.stem:
+        errs.append(f"{path.name}: name '{fm['name']}' must match the file name")
+    if not ARCH_NAME_RE.match(path.stem):
+        errs.append(f"{path.name}: file name must match [a-z][a-z0-9-]*")
+    if fm.get("verify_default") and fm["verify_default"] not in VERIFY:
+        errs.append(f"{path.name}: verify_default must be one of {sorted(VERIFY)}")
+    for k in ("task_kinds",):
+        bad = [x for x in fm.get(k, []) if x not in TASK_KINDS]
+        if bad:
+            errs.append(f"{path.name}: unknown {k} {bad}")
+    if "{{mandate}}" not in body:
+        errs.append(f"{path.name}: body should contain {{{{mandate}}}}")
+    return errs
+
+
+def archetype_files(root: Path) -> dict[str, Path]:
+    d = root / "archetypes"
+    return {p.stem: p for p in sorted(d.glob("*.md")) if not p.name.startswith(("_", "README"))} if d.exists() else {}
+
+
+def lane_verify_default(root: Path | None, lane: dict) -> str:
+    if lane.get("verify_default"):
+        return lane["verify_default"]
+    if root and lane.get("archetype") in archetype_files(root):
+        return parse_archetype(archetype_files(root)[lane["archetype"]])[0].get("verify_default", "light")
+    return "light"
+
+
+def render_lane_md(root: Path, m: dict, lane: dict) -> str:
+    res_by_name = {r["name"]: r for r in m.get("resources", [])}
+    res_lines = []
+    for name in lane.get("resources", []):
+        r = res_by_name.get(name, {})
+        res_lines.append(f"- `{name}` [{r.get('kind', '?')}{', EXCLUSIVE — only via a task claim' if r.get('exclusive') else ''}]"
+                         f" access: {r.get('access', '')}{' — ' + r['notes'] if r.get('notes') else ''}")
+    subs = {"lane": lane["name"], "mandate": lane["mandate"],
+            "resources": "\n".join(res_lines) or "(none)",
+            "evidence_standard": lane.get("evidence_standard") or m.get("criteria", {}).get("evidence_standard", "See manifest criteria."),
+            "verify_default": lane_verify_default(root, lane)}
+    if lane.get("archetype"):
+        _, body = parse_archetype(archetype_files(root)[lane["archetype"]])
+        for k, v in subs.items():
+            body = body.replace("{{" + k + "}}", v)
+        return body.lstrip("\n")
+    return (f"# Lane: {subs['lane']}\n\n## Mandate\n{subs['mandate']}\n\n## Resources\n{subs['resources']}\n\n"
+            f"## Evidence standard\n{subs['evidence_standard']}\n\n## Default verify level\n{subs['verify_default']}\n")
+
+
+def cmd_archetypes(args):
+    root = inv_root(args)
+    files = archetype_files(root)
+    if not files:
+        die(f"no archetypes in {root / 'archetypes'}")
+    if args.show:
+        if args.show not in files:
+            die(f"unknown archetype '{args.show}' (have: {', '.join(files)})")
+        print(files[args.show].read_text())
+        return
+    errs = [e for p in files.values() for e in archetype_errors(p)]
+    for name, p in files.items():
+        if archetype_errors(p):
+            continue
+        fm, _ = parse_archetype(p)
+        print(f"{name:18} {fm['summary']}\n{'':18} use when: {'; '.join(fm['use_when'])}\n"
+              f"{'':18} resources: {', '.join(fm['resource_kinds'])} · verify: {fm['verify_default']}")
+    if errs:
+        print("INVALID archetypes:\n  " + "\n  ".join(errs))
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------- resource probes
+
+def cmd_probe(args):
+    """Run each resource's `check` command (non-destructive access check)."""
+    import subprocess
+    root = inv_root(args)
+    m = manifest(root)
+    names = [r["name"] for r in m.get("resources", [])]
+    if args.lane:
+        lane = next((l for l in m["lanes"] if l["name"] == check_lane(root, args.lane)), None)
+        names = lane.get("resources", [])
+    if args.resource:
+        names = [args.resource]
+    failed = 0
+    for r in (r for r in m.get("resources", []) if r["name"] in names):
+        chk = r.get("check")
+        if not chk:
+            print(f"?    {r['name']}: no check defined")
+            continue
+        try:
+            p = subprocess.run(chk, shell=True, capture_output=True, text=True, timeout=args.timeout)
+            out = (p.stdout + p.stderr).strip().splitlines()
+            ok = p.returncode == 0
+            print(f"{'ok  ' if ok else 'FAIL'} {r['name']}: exit {p.returncode}" + (f" — {out[-1][:160]}" if out else ""))
+        except subprocess.TimeoutExpired:
+            ok = False
+            print(f"FAIL {r['name']}: timed out after {args.timeout}s")
+        failed += not ok
+    if failed:
+        sys.exit(1)
+
+
 def cmd_validate(args):
     root = inv_root(args)
-    errs = validate_manifest(manifest(root))
+    errs = validate_manifest(manifest(root), root)
     if errs:
         print("manifest INVALID:\n  " + "\n  ".join(errs))
         sys.exit(1)
@@ -344,7 +489,7 @@ def cmd_validate(args):
 def cmd_scaffold(args):
     root = inv_root(args)
     m = manifest(root)
-    errs = validate_manifest(m)
+    errs = validate_manifest(m, root)
     if errs:
         die("manifest invalid, fix first:\n  " + "\n  ".join(errs))
     for d in ("shared", "judge", "mail", "lanes"):
@@ -361,11 +506,7 @@ def cmd_scaffold(args):
         if not (ld / "plan.json").exists():
             write_json(ld / "plan.json", {"lane": l["name"], "version": 0, "round": 0, "tasks": [], "notes": ""})
         if not (ld / "lane.md").exists():
-            res = ", ".join(l.get("resources", [])) or "(none)"
-            (ld / "lane.md").write_text(
-                f"# Lane: {l['name']}\n\n## Mandate\n{l['mandate']}\n\n## Resources\n{res}\n\n"
-                f"## Evidence standard\n{l.get('evidence_standard', 'See manifest criteria.')}\n\n"
-                f"## Default verify level\n{l.get('verify_default', 'light')}\n")
+            (ld / "lane.md").write_text(render_lane_md(root, m, l))
     if not (root / "state.json").exists():
         write_json(root / "state.json", {"round": 1, "status": "active", "segments": []})
     print(f"scaffolded {root} with lanes: {', '.join(lane_names(root))}")
@@ -598,7 +739,7 @@ def all_task_ids(root: Path) -> dict[str, str]:
     return out
 
 
-def normalize_task(t: dict, lane: str, m: dict, budget: dict) -> dict:
+def normalize_task(t: dict, lane: str, m: dict, budget: dict, root: Path | None = None) -> dict:
     res_names = {r["name"] for r in m.get("resources", [])}
     lane_cfg = next(l for l in m["lanes"] if l["name"] == lane)
     for k in ("id", "title", "objective", "deliverable"):
@@ -607,7 +748,7 @@ def normalize_task(t: dict, lane: str, m: dict, budget: dict) -> dict:
     if lane_of_task(t["id"]) != lane:
         die(f"task {t['id']}: id must start with '{lane}-r' (format {lane}-rNN-NN)")
     t = {"kind": "other", "instructions": "", "resources": [], "deps": [],
-         "verify": lane_cfg.get("verify_default", "light"), "size": "short",
+         "verify": lane_verify_default(root, lane_cfg), "size": "short",
          "max_children": budget["max_children"], **t}
     if t["kind"] not in TASK_KINDS:
         die(f"task {t['id']}: kind must be one of {sorted(TASK_KINDS)}")
@@ -660,7 +801,7 @@ def cmd_plan(args):
         inflight = set(csv(args.inflight))
         new_tasks, seen = [], set()
         for t in incoming.get("tasks", []):
-            t = normalize_task(t, lane, m, budget)
+            t = normalize_task(t, lane, m, budget, root)
             if t["id"] in seen:
                 die(f"duplicate task id {t['id']}")
             seen.add(t["id"])
@@ -894,7 +1035,7 @@ def cmd_judge(args):
 
 # State each role needs up front; saves agents several opening tool calls.
 BRIEF_STATE = {
-    "scope": lambda a: [["plan", "show", "--lane", a.lane], ["worklog", "--lane", a.lane, "--tail", "15"],
+    "scope": lambda a: [["probe", "--lane", a.lane], ["plan", "show", "--lane", a.lane], ["worklog", "--lane", a.lane, "--tail", "15"],
                         ["mail", "list", "--lane", a.lane], ["steer", "list", "--lane", a.lane], ["judge", "show"],
                         ["query", "--lane", a.lane, "--limit", "15"], ["query", "--lane", "shared", "--limit", "15"]],
     "plan": lambda a: [["plan", "show", "--lane", a.lane], ["mail", "list", "--lane", a.lane],
@@ -1025,7 +1166,7 @@ def cmd_status(args):
 def cmd_wf_args(args):
     root = inv_root(args)
     m, st = manifest(root), state(root)
-    errs = validate_manifest(m)
+    errs = validate_manifest(m, root)
     if errs:
         die("manifest invalid:\n  " + "\n  ".join(errs))
     budget = {**DEFAULT_BUDGET, **m.get("budget", {})}
@@ -1067,6 +1208,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp("validate", cmd_validate)
     sp("scaffold", cmd_scaffold)
+    s = sp("archetypes", cmd_archetypes)
+    s.add_argument("--show", metavar="NAME")
+    s = sp("probe", cmd_probe)
+    s.add_argument("--lane")
+    s.add_argument("--resource")
+    s.add_argument("--timeout", type=int, default=15)
     s = sp("brief", cmd_brief)
     s.add_argument("--role", required=True, choices=ROLES)
     s.add_argument("--lane")

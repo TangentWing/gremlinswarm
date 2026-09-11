@@ -25,7 +25,7 @@ if [ -e "$DIR" ] && [ ! -f "$DIR/.smoke-test" ]; then
   echo "refusing to replace $DIR: not created by make_smoke.sh"; exit 1
 fi
 rm -rf "$DIR" && mkdir -p "$DIR" && touch "$DIR/.smoke-test"
-cp -R "$ROOT/investigate/kit/bin" "$ROOT/investigate/kit/prompts" "$DIR/"
+cp -R "$ROOT/investigate/kit/bin" "$ROOT/investigate/kit/prompts" "$ROOT/investigate/kit/archetypes" "$DIR/"
 sed -e "s#__TARGET_ROOT__#$TARGET#g" -e "s#__TOY_ROOT__#$TARGET#g" "$FIXTURE" > "$DIR/manifest.json"
 "$DIR/bin/board.py" validate
 "$DIR/bin/board.py" scaffold

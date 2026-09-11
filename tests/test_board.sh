@@ -102,6 +102,52 @@ done; ok "brief --role scope has protocol, role, lane, manifest and lane state"
 { "$B" brief --role judge | grep -q "state: board.py judge show"; } || fail "brief --role judge includes the last verdict"; ok "brief --role judge includes the last verdict"
 expect_fail "brief with unknown role" "$B" brief --role wizard
 
+echo "== archetypes"
+cp -R "$KIT/archetypes" "$S/"
+{ b archetypes | grep -q "^bisect "; } || fail "archetypes lists bisect"; ok "archetypes lists the baseline set"
+[ "$(b archetypes | grep -c '^[a-z]')" -eq 9 ] || fail "expected 9 archetypes"; ok "9 archetypes, all valid"
+{ b archetypes --show static-trace | grep -q "{{mandate}}"; } || fail "archetypes --show"; ok "archetypes --show prints the template"
+cp "$S/archetypes/_template.md" "$S/archetypes/broken.md"
+expect_fail "archetype whose name doesn't match its file" b archetypes
+rm "$S/archetypes/broken.md"
+# a second investigation that uses archetypes and resource checks
+S2="$S-arch"; rm -rf "$S2"; mkdir -p "$S2"; cp -R "$S/bin" "$S/prompts" "$S/archetypes" "$S2/"
+python3 - "$S/manifest.json" "$S2/manifest.json" <<'EOF'
+import json, sys
+m = json.load(open(sys.argv[1]))
+for l in m["lanes"]:
+    l.pop("verify_default", None)
+m["lanes"][0]["archetype"] = "static-trace"
+m["lanes"][2]["archetype"] = "repro-experiment"
+m["resources"][0]["check"] = "test -d /"
+m["resources"][1]["check"] = "exit 3"
+json.dump(m, open(sys.argv[2], "w"))
+EOF
+b2() { python3 "$S2/bin/board.py" "$@"; }
+{ b2 validate | grep -q "manifest OK"; } || fail "manifest with archetypes validates"; ok "manifest with archetypes validates"
+b2 scaffold >/dev/null
+{ grep -q "^## Method" "$S2/lanes/static/lane.md" && grep -q "symptom's entry point" "$S2/lanes/static/lane.md"; } || fail "lane.md rendered from archetype"; ok "lane.md rendered from the archetype template"
+{ ! grep -q "{{" "$S2/lanes/static/lane.md"; } || fail "unreplaced placeholder in lane.md"; ok "all placeholders replaced"
+{ grep -q '`repo` \[local-repo\]' "$S2/lanes/static/lane.md"; } || fail "resources rendered with kind"; ok "resources rendered with kind and access"
+{ grep -q "EXCLUSIVE" "$S2/lanes/experiments/lane.md"; } || fail "exclusive resource flagged in lane.md"; ok "exclusive resources flagged in lane.md"
+{ echo '{"tasks":[{"id":"static-r01-01","title":"t","objective":"o","deliverable":"d"}]}' | b2 plan save --lane static | grep -q '"verify": "adversarial"'; } || fail "verify default from archetype"; ok "task verify defaults to the archetype's (adversarial)"
+python3 - "$S2/manifest.json" <<'EOF'
+import json, sys
+m = json.load(open(sys.argv[1])); m["lanes"][1]["archetype"] = "no-such-thing"; json.dump(m, open(sys.argv[1], "w"))
+EOF
+expect_fail "unknown archetype in manifest" b2 validate
+python3 - "$S2/manifest.json" <<'EOF'
+import json, sys
+m = json.load(open(sys.argv[1])); m["lanes"][1].pop("archetype"); json.dump(m, open(sys.argv[1], "w"))
+EOF
+
+echo "== resource probes"
+{ b2 probe --resource repo | grep -q "^ok   repo"; } || fail "passing check"; ok "probe reports a passing check"
+expect_fail "probe exits non-zero when a check fails" b2 probe
+{ (b2 probe 2>/dev/null || true) | grep -q "^FAIL armbox: exit 3"; } || fail "failing check reported"; ok "probe reports the failing check with its exit code"
+{ b2 probe --resource ci_logs | grep -q "no check defined"; } || fail "missing check"; ok "resources without a check are reported, not failed"
+{ b2 brief --role scope --lane static | grep -q "state: board.py probe --lane static"; } || fail "scope brief runs probes"; ok "scope brief includes the lane's probe results"
+
 echo "== write guard"
 { echo hi | b write --path lanes/static/scope/round-01.md >/dev/null; } || fail "write inside inv dir"; ok "write inside inv dir"
 expect_fail "writing manifest.json" sh -c "echo hi | python3 $S/bin/board.py write --path manifest.json"
