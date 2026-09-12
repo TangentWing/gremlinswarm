@@ -49,6 +49,7 @@ b query --lane all | grep -q "$ID1" && fail "superseded entry still visible" || 
 b amend --id B-shared-0001 --set status=confirmed --note "experiment confirmed" --as judge >/dev/null
 { b query --lane shared --status confirmed | grep -q B-shared-0001; } || fail "amend status -> confirmed"; ok "amend status -> confirmed"
 { [ "$(b query --lane shared --as someone/else | grep -c '^B-')" -ge 1 ]; } || fail "--as does not filter query results (regression: shared dest with --author)"; ok "--as does not filter query results (regression: shared dest with --author)"
+{ [ "$(b query --lane all --include-superseded --id "$ID1,$ID2" | grep -c '^B-')" -eq 2 ]; } || fail "query --id"; ok "query --id selects entries by id"
 { b query --lane shared --author synth | grep -q B-shared-0001; } || fail "--author filters by author prefix"; ok "--author filters by author prefix"
 { b query --lane shared --author nobody | grep -q "no entries"; } || fail "--author with no match returns nothing"; ok "--author with no match returns nothing"
 { b query --tag alignment --include-superseded --format json | python3 -c "import sys,json;[json.loads(l) for l in sys.stdin]"; } || fail "json format parses"; ok "json format parses"

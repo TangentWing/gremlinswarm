@@ -13,7 +13,7 @@ Quick reference (all commands accept --as AUTHOR and --inv PATH):
   post --lane L|shared --kind K --subject S --body B [--tags a,b] [--refs x,y]
        [--confidence low|med|high] [--supersedes id,id]
   amend --id ID --set key=value [--set ...] [--note N]
-  query [--lane L|shared|all] [--kind K] [--tag T] [--status S] [--author A]
+  query [--lane L|shared|all] [--id ID,..] [--kind K] [--tag T] [--status S] [--author A]
         [--grep TEXT] [--round N] [--include-superseded] [--format brief|full|json] [--limit N]
   mail send --to L --subject S --body B [--type T] [--re ID] [--priority high]
   mail list --lane L [--all] [--format brief|full|json]     mail show --id ID
@@ -587,6 +587,8 @@ def select_entries(root: Path, lanes: list[str], args) -> list[dict]:
         entries, _ = boards[lane]
         for e in entries.values():
             if e["id"] in sup and not args.include_superseded:
+                continue
+            if args.id and e["id"] not in csv(args.id):
                 continue
             if args.kind and e.get("kind") != args.kind:
                 continue
@@ -1319,6 +1321,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sp("query", cmd_query)
     s.add_argument("--lane")
+    s.add_argument("--id", help="entry id(s), comma-separated")
     s.add_argument("--kind")
     s.add_argument("--tag")
     s.add_argument("--status")
