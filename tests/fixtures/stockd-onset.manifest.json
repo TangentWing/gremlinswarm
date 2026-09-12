@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "slug": "stockd-onset",
+  "title": "When did stockd start overselling, and what shipped just before? (INC-4471 timeline)",
+  "goal": "Establish the August timeline of reconciliation mismatches, the day they start, the deploy that immediately precedes that day, and what that deploy changed in the reservation path. Investigation only.",
+  "question": "When did the oversell start, which deploy preceded it, and what did that deploy change?",
+  "scope": {
+    "in": [
+      "__TARGET_ROOT__/logs (30 daily production logs)",
+      "__TARGET_ROOT__/repo (source and git history)",
+      "__TARGET_ROOT__/BUGREPORT.md"
+    ],
+    "out": [
+      "fixing the bug",
+      "running the service or its tests (no experiments this time)",
+      "anything outside __TARGET_ROOT__ and the investigation directory"
+    ],
+    "notes": "Evidence comes from the logs and from reading the source; nothing is executed. The repo is shared: never check out other commits in it."
+  },
+  "targets": [
+    {
+      "name": "stockd",
+      "path": "__TARGET_ROOT__/repo",
+      "notes": "Python stdlib HTTP service; August logs in ../logs"
+    }
+  ],
+  "resources": [
+    {
+      "name": "stockd_logs",
+      "kind": "logs",
+      "access": "__TARGET_ROOT__/logs/stockd-2026-08-DD.log (30 files, one per day)",
+      "exclusive": false,
+      "notes": "Read-only. Lines are INFO/WARNING/ERROR with deploy, reserve, slow-request and RECONCILE events.",
+      "check": "ls __TARGET_ROOT__/logs/stockd-2026-08-01.log >/dev/null"
+    },
+    {
+      "name": "stockd_repo",
+      "kind": "local-repo",
+      "access": "__TARGET_ROOT__/repo",
+      "exclusive": false,
+      "notes": "Read-only. Never modify files or check out other commits; use `git -C <repo> show <sha>` to read a commit.",
+      "check": "git -C __TARGET_ROOT__/repo rev-parse HEAD"
+    }
+  ],
+  "safety": [
+    "Never modify or check out commits in __TARGET_ROOT__/repo.",
+    "Do not run the service or its test suite in this investigation; read logs and source only.",
+    "Kill every process you start; record it with `task started` first."
+  ],
+  "criteria": {
+    "success": [
+      "A per-day table over all 30 August log files giving, for each day, the count of RECONCILE mismatch lines and any deploy that day, with the first day mismatches appear.",
+      "The deploy (version sha) immediately preceding the onset day, cited by log file and line, plus its commit subject from the repo.",
+      "A static verdict on what that commit changed in the reservation path (file:line), explicitly labelled static-only and at most 'med' confidence."
+    ],
+    "evidence_standard": "Log claims cite the log file and line and give counts. Code claims cite file:line and the commit sha. Nothing is executed, so every runtime claim stays an inference and is labelled as such.",
+    "stop_if": [
+      "The logs contain no RECONCILE mismatch lines at all."
+    ]
+  },
+  "lanes": [
+    {
+      "name": "logs",
+      "archetype": "log-mining",
+      "resources": [
+        "stockd_logs"
+      ],
+      "mandate": "Build the August timeline from all 30 log files: deploys, RECONCILE mismatches and their onset; count per day.",
+      "evidence_standard": "Cite log file and line; give counts per day."
+    },
+    {
+      "name": "static",
+      "archetype": "static-trace",
+      "resources": [
+        "stockd_repo"
+      ],
+      "mandate": "Read the reservation path and the commits around the onset; say what the preceding deploy changed.",
+      "evidence_standard": "Cite file:line and the commit sha; static-only claims capped at 'med'."
+    },
+    {
+      "name": "skunkworks",
+      "archetype": "skunkworks",
+      "resources": [
+        "stockd_logs",
+        "stockd_repo"
+      ],
+      "mandate": "Generalist: unroutable requests, cross-lane asks, salvage of failed work."
+    }
+  ],
+  "budget": {
+    "max_concurrent": 3,
+    "rounds_per_checkpoint": 1,
+    "max_rounds": 2,
+    "max_agents_per_segment": 30,
+    "max_tasks_per_lane_round": 2,
+    "verify_rounds": 2,
+    "max_children": 0,
+    "stall_rounds": 2,
+    "max_sweep_items": 8
+  },
+  "models": {},
+  "effort": {
+    "scope": "low",
+    "checkpoint": "low",
+    "synthesizer": "medium"
+  },
+  "agent_types": {
+    "scope": "investigate:scope",
+    "plan": "investigate:plan",
+    "investigator": "investigate:investigator",
+    "challenger": "investigate:challenger",
+    "salvage": "investigate:salvage",
+    "synthesizer": "investigate:synthesizer",
+    "judge": "investigate:judge",
+    "refuter": "investigate:refuter",
+    "checkpoint": "investigate:checkpoint"
+  },
+  "safety_deny": [
+    "git\\s+-C\\s+__TARGET_ROOT__/repo\\s+(checkout|switch|reset|bisect|stash|commit|clean)",
+    "cd\\s+__TARGET_ROOT__/repo\\s*(&&|;)\\s*git\\s+(checkout|switch|reset|bisect|stash|commit|clean)",
+    "\\bgit\\s+push\\b",
+    "python3?\\s+-m\\s+unittest"
+  ],
+  "writable": []
+}

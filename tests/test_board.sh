@@ -177,6 +177,17 @@ ok "refuted verdict keeps history and turns objections into gaps"
 expect_fail "refute without objections" b2 judge refute --round 1
 { b2 brief --role refuter | grep -q "Refuter"; } || fail "refuter brief"; ok "refuter has a brief (role prompt + verdict)"
 
+echo "== glued arguments (shell without word-splitting) + mail show"
+GLUED=$(zsh -c "A='--as static/glued'; python3 $S/bin/board.py post --lane static --kind note --subject glued \$A" 2>&1)
+{ grep -q '^B-static-' <<<"$GLUED"; } || fail "glued --as is repaired"; ok "glued '--as X' argument is repaired, not rejected"
+{ grep -q 'arrived glued' <<<"$GLUED"; } || fail "glued repair warns"; ok "glued repair prints a note naming the cause"
+{ b query --lane static --author static/glued | grep -q glued; } || fail "glued author recorded"; ok "repaired argument records the right author"
+expect_fail "a genuinely unknown flag is still rejected" b post --lane static --kind note --subject x --bogus y
+{ b post --lane static --kind note --subject "value with --as inside" --body "a --as b c" | grep -q '^B-'; } || fail "quoted value untouched"; ok "values containing '--as ' are left alone"
+MS=$(b mail send --to static --subject "show me" --body "full body here" --as logs/x)
+{ b mail show --id "$MS" | grep -q "full body here"; } || fail "mail show"; ok "mail show --id prints one message in full"
+expect_fail "mail show with an unknown id" b mail show --id M-static-9999
+
 echo "== write guard"
 { echo hi | b write --path lanes/static/scope/round-01.md >/dev/null; } || fail "write inside inv dir"; ok "write inside inv dir"
 expect_fail "writing manifest.json" sh -c "echo hi | python3 $S/bin/board.py write --path manifest.json"

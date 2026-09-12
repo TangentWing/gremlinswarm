@@ -136,7 +136,7 @@ function header(role, round, who, lane, briefArgs = '') {
   return [
     `You are the ${role.toUpperCase()} in a structured investigation.`,
     `Investigation directory: ${INV}`,
-    `Board CLI: ${BOARD}   (an executable; pass --as ${who} on every call)`,
+    `Board CLI: ${BOARD}   (an executable; pass --as ${who} literally on every call — never via a shell variable)`,
     `Round: ${round}${lane ? `   Lane: ${lane}` : ''}`,
     `Your first action: ${BOARD} brief --role ${role}${lane ? ` --lane ${lane}` : ''}${briefArgs} --as ${who}`,
     `It prints the protocol, your role instructions, ${lane ? 'your lane, ' : ''}the manifest essentials and the state you need. Follow them exactly.`,
@@ -177,7 +177,7 @@ const sweepItemPrompt = (t, round, item, k, n) => [
   `Task: ${t.id} — ${t.title}`,
   `SWEEP ITEM ${k}/${n}: ${item}`,
   `Read the task spec with: ${BOARD} task show --id ${t.id}. Apply its per-item instructions to THIS ITEM ONLY; other agents handle the other items in parallel.`,
-  `Record your item result with: ${BOARD} task item --id ${t.id} --n ${k} --status done|partial|failed|blocked --summary "..." [--board-ids ...] --as ${t.lane}/${t.id}`,
+  `Record your item result with: ${BOARD} task item --id ${t.id} --n ${k} --status done|partial|failed|blocked --summary "..." [--board-ids ...]`,
   `Do NOT call task finish — a reducer aggregates all items afterwards.`,
 ].join('\n\n')
 

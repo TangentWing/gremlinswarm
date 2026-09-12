@@ -37,6 +37,10 @@ task_kinds: [experiment, trace]
   both endpoints; otherwise copy the current test into each checkout.
 - The first commit where failures *increase* is not the one where they *start* → bisect
   on "fails at all", not on "fails more".
+- `git bisect reset` fails with "We are not bisecting" when no bisect is in progress, and
+  in an `&&` chain that aborts everything after it → use `git bisect reset || true`.
+- `git bisect good|bad|skip` take no flags (`-q` is read as a commit) → pass none, and put
+  `-q` only on `git checkout`.
 
 ## Typical tasks
 - `experiment` — Establish good/bad endpoints with 10 runs each.

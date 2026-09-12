@@ -14,7 +14,11 @@ Paths are relative to the investigation directory. `$BOARD --help` and `$BOARD <
    it) — do not chase it.
 2. **Shared state only through the board CLI** (given in your prompt as `Board CLI`). Never
    hand-edit `*.jsonl`, `plan.json`, `task.json`, `result.json`, `state.json` or
-   `manifest.json`. Always pass `--as <your id>`.
+   `manifest.json`. Identify yourself with `--as <your id>` (the id in your prompt) on
+   every call, written out literally — environment variables do not survive between
+   commands, and **a flag and its value must never share a shell variable**
+   (`A="--as x"; $B post $A`): this shell does not word-split, so the CLI receives one
+   broken argument. Put only paths and ids in variables (`T=lanes/static/tasks/...`).
 3. **Context hygiene.** Query, don't dump: use `query` filters (`--lane --kind --tag
    --status --grep --round --limit`), `grep`/`rg`, and read files only as far as needed.
    Your final answer is small; detail goes in files and board entries.

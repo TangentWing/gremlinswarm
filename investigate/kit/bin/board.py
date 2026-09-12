@@ -16,7 +16,7 @@ Quick reference (all commands accept --as AUTHOR and --inv PATH):
   query [--lane L|shared|all] [--kind K] [--tag T] [--status S] [--author A]
         [--grep TEXT] [--round N] [--include-superseded] [--format brief|full|json] [--limit N]
   mail send --to L --subject S --body B [--type T] [--re ID] [--priority high]
-  mail list --lane L [--all] [--format brief|full|json]
+  mail list --lane L [--all] [--format brief|full|json]     mail show --id ID
   mail set --id ID --status accepted|declined|done [--note N]
   mail reply --id ID --body B [--status done|declined|accepted]
   ask --question Q [--context C] [--lane L]
@@ -641,6 +641,11 @@ def cmd_mail(args):
         entries, _ = materialize(read_jsonl(mail_path(root, lane)))
         rows = [e for e in entries.values() if args.all or e.get("status") in ("new", "accepted")]
         print("\n".join(fmt_entry(e, args.format) for e in rows) if rows else "(no mail)")
+    elif args.mail_cmd == "show":
+        _, lane = lane_of_entry(args.id)
+        entries, _ = materialize(read_jsonl(mail_path(root, lane)))
+        e = entries.get(args.id) or die(f"{args.id} not found in {lane}'s mailbox")
+        print(fmt_entry(e, "full"))
     elif args.mail_cmd == "set":
         if args.status not in MAIL_STATUSES:
             die(f"--status must be one of {sorted(MAIL_STATUSES)}")
@@ -1337,6 +1342,8 @@ def build_parser() -> argparse.ArgumentParser:
     x.add_argument("--lane", required=True)
     x.add_argument("--all", action="store_true")
     x.add_argument("--format", choices=["brief", "full", "json"], default="brief")
+    x = ms.add_parser("show", parents=[common])
+    x.add_argument("--id", required=True)
     x = ms.add_parser("set", parents=[common])
     x.add_argument("--id", required=True)
     x.add_argument("--status", required=True)
@@ -1441,8 +1448,42 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+GLUED_RE = re.compile(r"^(--[A-Za-z][\w-]*)\s+(.*)$", re.S)
+
+
+def parse_argv(argv: list[str]):
+    """Parse argv, repairing arguments glued by a shell that doesn't word-split.
+
+    zsh (the default here) does NOT split an unquoted variable, so
+    `A="--as lane/task"; board.py post ... $A` arrives as the single argument
+    "--as lane/task". Only arguments argparse rejects are split, so real values
+    are never touched."""
+    parser = build_parser()
+    args, extra = parser.parse_known_args(argv)
+    if extra:
+        fixed, glued = [], []
+        for a in argv:
+            m = GLUED_RE.match(a) if a in extra else None
+            if m:
+                fixed += [m.group(1), m.group(2)]
+                glued.append(a)
+            else:
+                fixed.append(a)
+        if glued:
+            args2, extra2 = parser.parse_known_args(fixed)
+            if not extra2:
+                print(f"note: split {len(glued)} argument(s) that arrived glued, e.g. {glued[0]!r}. "
+                      f"Your shell does not word-split an unquoted variable holding \"--flag value\"; "
+                      f"export BOARD_AUTHOR=<your id> once instead of passing --as through a variable.",
+                      file=sys.stderr)
+                return args2
+    if extra:
+        parser.error("unrecognized arguments: " + " ".join(extra))
+    return args
+
+
 def main(argv=None):
-    args = build_parser().parse_args(argv)
+    args = parse_argv(list(sys.argv[1:] if argv is None else argv))
     try:
         args.fn(args)
     except BoardError as e:

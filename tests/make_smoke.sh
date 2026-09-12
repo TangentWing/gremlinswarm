@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build a fresh smoke-test investigation from the kit and a fixture manifest.
-# Usage: tests/make_smoke.sh [fixture-name]   (default: toy-ringbuf)
+# Usage: tests/make_smoke.sh [fixture-name] [target-example]   (default: toy-ringbuf, target = fixture name)
 #
 # Target: examples/<name>/ is used as-is, unless it has a build_target.py, in which case a
 # fresh target is generated into targets/<name>/ first. The fixture's __TARGET_ROOT__ (and
@@ -9,13 +9,14 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 NAME="${1:-toy-ringbuf}"
+TARGET_NAME="${2:-$NAME}"          # fixtures may reuse another example's target
 FIXTURE="$ROOT/tests/fixtures/$NAME.manifest.json"
-EXAMPLE="$ROOT/examples/$NAME"
+EXAMPLE="$ROOT/examples/$TARGET_NAME"
 DIR="$ROOT/investigations/$NAME"
 [ -f "$FIXTURE" ] || { echo "no fixture $FIXTURE"; exit 1; }
 [ -d "$EXAMPLE" ] || { echo "no example $EXAMPLE"; exit 1; }
 if [ -f "$EXAMPLE/build_target.py" ]; then
-  TARGET="$ROOT/targets/$NAME"
+  TARGET="$ROOT/targets/$TARGET_NAME"
   python3 "$EXAMPLE/build_target.py" --out "$TARGET"
 else
   TARGET="$EXAMPLE"
