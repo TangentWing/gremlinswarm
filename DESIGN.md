@@ -223,7 +223,20 @@ overturn it (`board.py judge refute` turns objections into gaps and reopens).
 **Sweeps**: `kind: sweep` + `items[]` (≤ `max_sweep_items`) → one agent per item, then a
 reducer; replaces "one investigator with two children" for many-unit work.
 
-## 11. Known v1 limits
+## 11. What the smoke runs measured
+
+| Run | Target | Agents | Result |
+|---|---|---|---|
+| toy 1 | toy-ringbuf | 12 | Correct root cause. 10/12 agents hit a shell word-splitting error; 20 calls spent re-reading prompt files. |
+| toy 2 | toy-ringbuf | 12 | Same answer, 73 tool calls vs 133, 3.6M vs 6.6M cache reads, 0 shell errors (single-path CLI + `brief`). |
+| stockd before | stockd | 46 | 3/5 criteria. One **long** bisect task held the exclusive port for a whole round, so both repro tasks were deferred — the two open criteria needed them. |
+| stockd after | stockd | 60 (interrupted) | Round 1 alone produced root cause, reproducer, introducing commit and log timeline. The bisect lane split into two **short** tasks and planned a no-port task next round; repro finished 4 tasks. 0 guard interventions, no turn cap reached. |
+
+Repairs those runs drove: exclusive claims shown to planners (and "never make a task long
+while it holds a shared exclusive resource"), the `brief` command, the single-path board
+CLI, the glued-argument repair, `mail show`, and the bisect archetype's git pitfalls.
+
+## 12. Known v1 limits
 
 - No per-agent timeout; a hung agent is stopped by hand in `/workflows` (→ salvage).
 - Workflow resume is same-session only; cross-session continuity comes from the

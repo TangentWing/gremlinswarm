@@ -65,15 +65,17 @@ node tests/mock_workflow.mjs    # scheduler: concurrency, exclusive claims, deps
                                 # salvage, revise loops, stall / agent-cap / max-rounds stops
 ```
 
-## Smoke test (spends tokens: ~12–14 agents)
+## Smoke tests (these spend tokens — sizes below)
 
 ```bash
-bash tests/make_smoke.sh toy-ringbuf     # fresh investigations/toy-ringbuf from kit + fixture
-bash tests/make_smoke.sh stockd          # builds targets/stockd, then investigations/stockd
+bash tests/make_smoke.sh toy-ringbuf          # ~12 agents: one planted bug in 3 files
+bash tests/make_smoke.sh stockd-onset stockd  # ~20 agents: 3 lanes over 30 log files + git history
+bash tests/make_smoke.sh stockd              # ~45+ agents: 5 lanes, bisect, exclusive port, red herrings
 ```
 
 Then `/investigate:run investigations/toy-ringbuf`, or launch the workflow directly with
 `scriptPath: investigations/toy-ringbuf/bin/investigate.js` and
 `args: $(python3 investigations/toy-ringbuf/bin/board.py wf-args)`.
-Fixture manifests live in `tests/fixtures/`; generated runs under `investigations/` are not
-committed.
+A fixture may reuse another example's target (second argument). Fixture manifests live in
+`tests/fixtures/`; generated runs under `investigations/` and targets under `targets/` are
+git-ignored, so investigation output never lands in the repo.
