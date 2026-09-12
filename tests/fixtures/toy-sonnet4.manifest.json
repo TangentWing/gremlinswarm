@@ -1,7 +1,7 @@
 {
   "version": 1,
   "slug": "toy-sonnet4",
-  "title": "Moving average drifts low after warm-up (smoke test) \u2014 model floor test (Sonnet 4)",
+  "title": "Moving average drifts low after warm-up (smoke test) \u2014 model floor test (Sonnet 4.5)",
   "goal": "Find the root cause of the moving average reading low once the window fills, locate it to file:line, and decide whether test_constant_signal encodes a bug.",
   "question": "Why does MovingAverage read ~20% low for a steady signal once the window is full?",
   "scope": {
@@ -83,15 +83,15 @@
     "stall_rounds": 2
   },
   "models": {
-    "scope": "claude-sonnet-4-0",
-    "plan": "claude-sonnet-4-0",
-    "investigator": "claude-sonnet-4-0",
-    "challenger": "claude-sonnet-4-0",
-    "salvage": "claude-sonnet-4-0",
-    "synthesizer": "claude-sonnet-4-0",
-    "judge": "claude-sonnet-4-0",
-    "refuter": "claude-sonnet-4-0",
-    "checkpoint": "claude-sonnet-4-0"
+    "scope": "claude-sonnet-4-5",
+    "plan": "claude-sonnet-4-5",
+    "investigator": "claude-sonnet-4-5",
+    "challenger": "claude-sonnet-4-5",
+    "salvage": "claude-sonnet-4-5",
+    "synthesizer": "claude-sonnet-4-5",
+    "judge": "claude-sonnet-4-5",
+    "refuter": "claude-sonnet-4-5",
+    "checkpoint": "claude-sonnet-4-5"
   },
   "effort": {
     "scope": "low",
