@@ -233,6 +233,7 @@ reducer; replaces "one investigator with two children" for many-unit work.
 | stockd after | stockd | 60 (interrupted) | Round 1 alone produced root cause, reproducer, introducing commit and log timeline. The bisect lane split into two **short** tasks and planned a no-port task next round; repro finished 4 tasks. 0 guard interventions, no turn cap reached. |
 | stockd-onset | stockd | 20 | 3/3 criteria in one round. The refuter re-derived all 30 table rows and upheld the verdict (confirm-met proven live). The planner chose one grep task over a 30-item sweep — correctly. |
 | toy on Haiku 4.5 | toy-ringbuf | 14 | Correct answer with all 9 roles on Haiku 4.5, at ~2× Opus's tool calls (150 vs 73). **The refuter hit its 15-turn cap and returned no verdict, so `met` was accepted unconfirmed** — the safety check silently didn't run. |
+| toy on Sonnet 4.5 | toy-ringbuf | 13 | Correct answer with all 9 roles on Sonnet 4.5 (after the refuter fix), 123 tool calls. Refuter returned a real verdict in 12 of 30 turns; no retry, no structured-output misses, no guard hits. Sonnet 4 itself is retired and fails fast (0 tokens) via the failure guard. |
 
 Repairs those runs drove: exclusive claims shown to planners (and "never make a task long
 while it holds a shared exclusive resource"), the `brief` command, the single-path board
