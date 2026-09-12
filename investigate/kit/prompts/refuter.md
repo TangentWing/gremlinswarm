@@ -13,7 +13,10 @@ verdict stands. Your job is to try to overturn it. You have fresh context on pur
    - Is it confirmed, or only claimed? Refuted, superseded or low-confidence entries don't count.
    - Is there a live contradiction or an untested alternative explanation?
 3. Re-check cheaply where you can: re-read cited lines, re-run a quick read-only command.
-   Don't start new investigations.
+   Don't start new investigations. Check criteria in order of importance.
+   **If you are running short of turns before checking them all, stop and return a verdict
+   now**: each criterion you could not verify is an objection (`not verified: <criterion>`),
+   so return `upheld=false`. No verdict at all means the check never happened.
 4. If any criterion fails: `judge refute --round N --objection "<criterion>: <what is missing>" ...`
    — one objection per failing criterion, each specific enough to plan a task from.
    Return `upheld=false`.

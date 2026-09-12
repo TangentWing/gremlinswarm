@@ -33,12 +33,13 @@ const PLANS = {
   2: { static: ['static-r02-01'], experiments: ['experiments-r01-02'] },
 }
 
-function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => ({ met: r >= 2, progress: true }), refute = () => false, failAll = false } = {}) {
+function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => ({ met: r >= 2, progress: true }), refute = () => false, refuterLost = () => false, failAll = false } = {}) {
   const logs = [], trace = []
   let active = 0, maxActive = 0
   const holders = new Map()      // exclusive resource -> task id (agent-level check)
   const violations = []
   const reviewCount = {}
+  const refuteAttempts = {}
   const t0 = Date.now()
 
   async function agent(prompt, o) {
@@ -83,7 +84,7 @@ function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => 
         }
         case 'synthesizer': { await sleep(10); return { summary: `synth r${round}` } }
         case 'judge': { await sleep(10); const j = judge(round); return { gaps: [], summary: `judge r${round}`, ...j } }
-        case 'refuter': { await sleep(10); const r = refute(round); return { upheld: !r, objections: r ? ['criterion 2 unverified'] : [], summary: `refuter r${round}` } }
+        case 'refuter': { await sleep(10); const att = (refuteAttempts[round] = (refuteAttempts[round] || 0) + 1); if (refuterLost(round, att)) return null; const r = refute(round); return { upheld: !r, objections: r ? ['criterion 2 unverified'] : [], summary: `refuter r${round}` } }
         case 'checkpoint': { await sleep(5); return { report_path: 'report.md', summary: 'checkpoint', open_questions: 0 } }
       }
       throw new Error('unknown role ' + role)
@@ -208,6 +209,20 @@ const refuted = await harness({ args: { ...BASE_ARGS, budget: { ...BASE_ARGS.bud
 await test('a refuted met verdict continues the investigation', () => {
   assert.equal(refuted.result.reason, 'met'); assert.deepEqual(refuted.result.rounds_run, [1, 2])
   assert.ok(refuted.logs.some(l => /refuted/.test(l)), refuted.logs.join('\n'))
+})
+
+console.log('== scenario: refuter produces no verdict')
+const lostAlways = await harness({ judge: () => ({ met: true, progress: true }), refuterLost: () => true })
+await test('a missing refuter verdict is retried once', () => {
+  assert.equal(starts(lostAlways.trace, e => e.role === 'refuter').length, 2)
+})
+await test('met is never reported as confirmed when the refuter gave no verdict', () => {
+  assert.equal(lostAlways.result.reason, 'met_unconfirmed')
+  assert.ok(lostAlways.logs.some(l => /unconfirmed/.test(l)), lostAlways.logs.join('\n'))
+})
+const lostOnce = await harness({ judge: () => ({ met: true, progress: true }), refuterLost: (r, att) => att === 1 })
+await test('a refuter that answers on retry confirms met normally', () => {
+  assert.equal(lostOnce.result.reason, 'met'); assert.equal(starts(lostOnce.trace, e => e.role === 'refuter').length, 2)
 })
 
 console.log('== scenario: sweeps')

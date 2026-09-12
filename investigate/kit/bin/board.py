@@ -1185,8 +1185,9 @@ def cmd_segment(args):
         st = state(root)
         st.setdefault("segments", []).append({"n": len(st.get("segments", [])) + 1, "start_round": args.start,
                                               "end_round": args.end, "reason": args.reason, "ts": now()})
-        if args.reason in ("met", "stall", "max_rounds"):
-            st["status"] = {"met": "met", "stall": "stalled", "max_rounds": "exhausted"}[args.reason]
+        if args.reason in ("met", "met_unconfirmed", "stall", "max_rounds"):
+            st["status"] = {"met": "met", "met_unconfirmed": "met_unconfirmed",
+                            "stall": "stalled", "max_rounds": "exhausted"}[args.reason]
         write_json(spath, st)
     print(f"segment closed: rounds {args.start}-{args.end} ({args.reason})")
 
@@ -1444,7 +1445,7 @@ def build_parser() -> argparse.ArgumentParser:
     x.add_argument("--start", type=int, required=True)
     x.add_argument("--end", type=int, required=True)
     x.add_argument("--reason", required=True,
-                   choices=["checkpoint", "met", "stall", "max_rounds", "agent_cap", "token_budget", "error"])
+                   choices=["checkpoint", "met", "met_unconfirmed", "stall", "max_rounds", "agent_cap", "token_budget", "error"])
     return p
 
 

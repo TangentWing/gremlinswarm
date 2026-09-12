@@ -188,6 +188,12 @@ MS=$(b mail send --to static --subject "show me" --body "full body here" --as lo
 { b mail show --id "$MS" | grep -q "full body here"; } || fail "mail show"; ok "mail show --id prints one message in full"
 expect_fail "mail show with an unknown id" b mail show --id M-static-9999
 
+echo "== met_unconfirmed"
+S3="$S-unconf"; rm -rf "$S3"; mkdir -p "$S3"; cp -R "$S/bin" "$S/prompts" "$S/archetypes" "$S/manifest.json" "$S3/"
+python3 "$S3/bin/board.py" scaffold >/dev/null
+{ python3 "$S3/bin/board.py" segment close --start 1 --end 1 --reason met_unconfirmed --as checkpoint | grep -q "met_unconfirmed"; } || fail "segment close met_unconfirmed"; ok "segment close accepts met_unconfirmed"
+{ python3 "$S3/bin/board.py" status | grep -q "status met_unconfirmed"; } || fail "status shows met_unconfirmed"; ok "state records met_unconfirmed, distinct from met"
+
 echo "== write guard"
 { echo hi | b write --path lanes/static/scope/round-01.md >/dev/null; } || fail "write inside inv dir"; ok "write inside inv dir"
 expect_fail "writing manifest.json" sh -c "echo hi | python3 $S/bin/board.py write --path manifest.json"

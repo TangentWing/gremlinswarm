@@ -450,9 +450,17 @@ for (; round <= last && reason === 'checkpoint'; round++) {
     log(`Round ${round} judge: met=${verdict.met} progress=${verdict.progress} — ${verdict.summary.slice(0, 200)}`)
     if (verdict.met) {
       // stopping is the costliest decision: a fresh refuter must fail to overturn it
-      const check = await run(refuterPrompt(round), opts('refuter', { label: `r${round} refute met`, phase: 'Judge', schema: REFUTE }))
+      let check = await run(refuterPrompt(round), opts('refuter', { label: `r${round} refute met`, phase: 'Judge', schema: REFUTE }))
+      if (!check && !systemic()) {
+        log(`Round ${round}: refuter returned no verdict — retrying once.`)
+        check = await run(refuterPrompt(round), opts('refuter', { label: `r${round} refute met (retry)`, phase: 'Judge', schema: REFUTE }))
+      }
       rounds[rounds.length - 1].refuter = check
-      if (!check) { log(`Round ${round}: refuter lost — accepting the judge's met verdict unconfirmed.`); reason = 'met'; break }
+      if (!check) {
+        // never report a stop as confirmed when the check didn't happen
+        log(`Round ${round}: refuter gave no verdict twice — stopping as met_unconfirmed; the verdict is unchecked.`)
+        reason = 'met_unconfirmed'; break
+      }
       if (check.upheld) { reason = 'met'; break }
       log(`Round ${round}: met verdict refuted — ${(check.objections || []).join('; ').slice(0, 300)}`)
       verdict.met = false

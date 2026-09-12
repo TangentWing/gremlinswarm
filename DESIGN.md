@@ -231,10 +231,15 @@ reducer; replaces "one investigator with two children" for many-unit work.
 | toy 2 | toy-ringbuf | 12 | Same answer, 73 tool calls vs 133, 3.6M vs 6.6M cache reads, 0 shell errors (single-path CLI + `brief`). |
 | stockd before | stockd | 46 | 3/5 criteria. One **long** bisect task held the exclusive port for a whole round, so both repro tasks were deferred — the two open criteria needed them. |
 | stockd after | stockd | 60 (interrupted) | Round 1 alone produced root cause, reproducer, introducing commit and log timeline. The bisect lane split into two **short** tasks and planned a no-port task next round; repro finished 4 tasks. 0 guard interventions, no turn cap reached. |
+| stockd-onset | stockd | 20 | 3/3 criteria in one round. The refuter re-derived all 30 table rows and upheld the verdict (confirm-met proven live). The planner chose one grep task over a 30-item sweep — correctly. |
+| toy on Haiku 4.5 | toy-ringbuf | 14 | Correct answer with all 9 roles on Haiku 4.5, at ~2× Opus's tool calls (150 vs 73). **The refuter hit its 15-turn cap and returned no verdict, so `met` was accepted unconfirmed** — the safety check silently didn't run. |
 
 Repairs those runs drove: exclusive claims shown to planners (and "never make a task long
 while it holds a shared exclusive resource"), the `brief` command, the single-path board
-CLI, the glued-argument repair, `mail show`, and the bisect archetype's git pitfalls.
+CLI, the glued-argument repair, `mail show`, the bisect archetype's git pitfalls, sharper
+sweep guidance, and — from the Haiku run — a refuter retry that stops as `met_unconfirmed`
+rather than reporting an unchecked `met`, a refuter turn cap of 30, and a rule to return a
+partial verdict (unchecked criteria as objections) before running out of turns.
 
 ## 12. Known v1 limits
 

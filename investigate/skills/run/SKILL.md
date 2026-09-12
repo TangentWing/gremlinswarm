@@ -23,7 +23,8 @@ opt-in to running the investigation workflow.
 ## 2. Pre-flight
 
 1. `$BOARD status` — summarise in two lines. `status: met` → show the bottom line and
-   continue only if the user wants to push further. Round beyond `max_rounds` → offer to
+   continue only if the user wants to push further. `status: met_unconfirmed` → say the
+   refuter never checked the verdict and offer to relaunch. Round beyond `max_rounds` → offer to
    raise it in `manifest.json`.
 2. **Questions for the human** (`$BOARD questions`) — ask the user (AskUserQuestion for
    choices). Record each reply with `$BOARD answer --id <id> --body "<reply>"`:
@@ -57,11 +58,13 @@ No Workflow tool → workflows are disabled; tell the user to enable "Dynamic wo
 ## 4. Checkpoint (workflow finished)
 
 1. Read `report.md` (fallback: the workflow's `summary` and `$BOARD status`).
-2. Present: stop reason (`checkpoint | met | stall | agent_cap | token_budget | max_rounds`),
+2. Present: stop reason (`checkpoint | met | met_unconfirmed | stall | agent_cap | token_budget | max_rounds`),
    bottom line, confirmed findings with board ids, **questions** (record replies as in 2.2),
    "Needs your attention", suggested steering.
    Stop reason `error` means agents were failing repeatedly (API, rate or session limit):
    there is no report and the round was not counted — relaunch (step 3) once it clears.
+   Stop reason `met_unconfirmed` means the judge said met but the refuter returned no verdict
+   (twice): say the verdict is unchecked; relaunching re-judges and re-runs the refuter.
 3. Ask: continue / steer (`steer add`) / change budget (edit `manifest.json` → `validate`) /
    stop. On continue, go straight to step 3 in this turn.
 
