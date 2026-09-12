@@ -43,6 +43,10 @@ task (or spend one quick Explore subagent on it — that is the only child you m
    the budget's `max_sweep_items`) and `instructions` written *per item*. The scheduler runs
    one agent per item, then a reducer that aggregates into the `deliverable`. Items run in
    parallel unless the task claims an exclusive resource.
+   **Only sweep when each item needs real work of its own** — reading and judging a file,
+   running something, weighing evidence. If one agent could do every item with a single
+   command or script (grep/awk over a directory, a loop over small files), that is one
+   ordinary task and a sweep would just cost N times more.
 8. **Mail.** For each new message: accept (create a task, then
    `mail set --id M --status accepted`), decline in one line
    (`mail reply --id M --status declined --body "out of scope: ..."`), or answer in one

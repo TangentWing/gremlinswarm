@@ -23,8 +23,9 @@ task_kinds: [analysis, read]
    the failure signature and what changed just before it.
 4. For each candidate cause, check temporal precedence (did it come first?), dose-response
    (more of it → more failures?) and whether it exists without the failure. Report all three.
-5. Large sets (many files or shards) → one task per shard or a sweep, each returning a
-   compact per-shard summary; aggregate afterwards.
+5. Large sets (many files or shards) → first try one pass with `grep`/`awk` over all of
+   them (cheapest, and usually enough for counts and timelines). Reach for a sweep only
+   when each shard needs judgment or its own tooling, not just a pattern count.
 
 ## Evidence standard
 {{evidence_standard}}
