@@ -41,9 +41,12 @@
 ## Cost estimate
 
 Per round ≈ `2 × active lanes` (scope + plan) + `Σ tasks × (1 + reviews + revisions)` + 2
-(synthesis + judge), + 1 refuter when the judge says met; a sweep costs one agent per item + 1. Example: 3 lanes + skunkworks (usually idle), 2 tasks per lane,
-`light` verify → 8 + 12 + 2 ≈ 22 agents per round; with `rounds_per_checkpoint: 2`
-≈ 45 per segment. `adversarial` tasks cost up to `2 × verify_rounds` agents each.
+(synthesis + judge) + 1 strategist (skipped on quiet rounds), + 1 refuter when the judge says met; a sweep costs one
+agent per item + 1. Example: 3 lanes + skunkworks (usually idle), 2 tasks per lane, `light` verify →
+8 + 12 + 3 ≈ 23 agents per round; with `rounds_per_checkpoint: 2` ≈ 50 per segment. `adversarial` tasks cost up
+to `2 × verify_rounds` agents each. Size `max_agents_per_segment` for the whole segment: when the cap is reached
+mid-round, reviews are the first thing skipped, the judge then counts that work as unverified, and the next
+segment has to review it before it counts (E6 trisvc: a 40-agent cap on 4 lanes stalled a run that had the answer).
 
 ## Lane design tips
 

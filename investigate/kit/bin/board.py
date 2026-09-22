@@ -40,6 +40,7 @@ Quick reference (all commands accept --as AUTHOR and --inv PATH):
   validate | scaffold | wf-args [--rounds N]
   archetypes [--show NAME]            lane archetypes available to this investigation
   probe [--lane L] [--resource R]     run resources' non-destructive `check` commands
+  debt                                verification debt: finished tasks whose lane verifies but no review is on file
   lint [--round N]                    cross-lane plan checks (a long task holding an exclusive resource another
                                       lane queued for, fan-in on one exclusive resource, shared working dirs, dead deps)
   digest                              facts for verdict roles: review status behind each shared entry,
@@ -969,6 +970,31 @@ def plan_lint(root: Path, m: dict, plans: dict, rnd: int | None = None) -> list[
     return out
 
 
+def verification_debt(root: Path) -> list[dict]:
+    """Finished tasks (done/partial) with verify != none and no review on file. E6: reviews were skipped at the
+    agent cap, and two challengers returned a verdict without recording it; the judge then (rightly) counted the
+    work as unverified and the run stalled with the answer on the board. The next segment reviews these first."""
+    out = []
+    for res in sorted(root.glob("lanes/*/tasks/*/result.json")):
+        r = load_json(res)
+        t = load_json(res.parent / "task.json") or {}
+        if r.get("status") not in ("done", "partial") or t.get("verify", "light") == "none":
+            continue
+        if not list(res.parent.glob("review-*.json")):
+            out.append({"id": r["id"], "lane": lane_of_task(r["id"]), "title": t.get("title", ""), "verify": t.get("verify", "light"),
+                        "status": r["status"], "round": r.get("round")})
+    return out
+
+
+def cmd_debt(args):
+    root = inv_root(args)
+    debt = verification_debt(root)
+    for d in debt:
+        print(f"{d['id']} [{d['verify']}] finished {d['status']} in round {d['round']} — no review on file: {d['title']}")
+    if not debt:
+        print("(no verification debt)")
+
+
 def cmd_lint(args):
     root = inv_root(args)
     plans = {ln: load_json(root / "lanes" / ln / "plan.json", {"lane": ln, "tasks": []}) for ln in lane_names(root)}
@@ -1543,7 +1569,7 @@ BRIEF_STATE = {
     "strategist": lambda a: [["status"], ["judge", "show"], ["steer", "list"], ["strategy", "show"], ["strategy", "delta"],
                              ["query", "--lane", "shared", "--format", "full"],
                              ["query", "--lane", "all", "--format", "brief", "--limit", "60"], ["digest"], ["questions"]],
-    "checkpoint": lambda a: [["status"], ["questions"], ["leftovers"]],
+    "checkpoint": lambda a: [["status"], ["questions"], ["leftovers"], ["debt"]],
 }
 
 
@@ -1697,6 +1723,7 @@ def cmd_wf_args(args):
         "effort": {k: v for k, v in (m.get("effort") or {}).items() if v},
         "agent_types": {} if args.no_agent_types else {k: v for k, v in (m.get("agent_types") or {}).items() if v},
         "has_strategy": load_json(strategy_path(root)) is not None,
+        "verification_debt": verification_debt(root),
     }
     print(json.dumps(out, indent=1))
 
@@ -1733,6 +1760,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--task")
     s.add_argument("--round", type=int)
     sp("digest", cmd_digest)
+    sp("debt", cmd_debt)
     s = sp("lint", cmd_lint)
     s.add_argument("--round", type=int, help="replay: lint the tasks planned in that round instead of the queued ones")
     s = sp("status", cmd_status)

@@ -32,7 +32,10 @@ has not yet ruled out.
    them; a strategy that changes every round makes planners drop queued work. Say
    `change: "none"` when nothing moved. Keep at least two hypotheses live unless the boards
    refute every other one.
-6. Do not post to the boards and do not write files. Save with the command in your prompt:
+6. **Turn budget.** Save early: a position you can support now, then refine it with the turns
+   left. An unsaved position is lost (stockd E6: the round-2 strategist ran out of turns with
+   nothing saved, and round 3 planned on the old one).
+7. Do not post to the boards and do not write files. Save with the command in your prompt:
 
 ```bash
 $BOARD strategy save --round N --as strategist <<'EOF'

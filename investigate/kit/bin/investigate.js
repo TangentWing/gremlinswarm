@@ -3,6 +3,7 @@ export const meta = {
   description: 'Run one checkpoint segment of a multi-lane investigation: scope, plan, investigate+verify, synthesize, judge',
   whenToUse: 'Launched by /investigate:run with args from `board.py wf-args`; not meant to be run by hand',
   phases: [
+    { title: 'Verify debt', detail: 'reviews owed from earlier segments: skipped at the cap, or returned without a record' },
     { title: 'Scope & plan', detail: 'per lane: scope brief, then task plan (pipelined, no barrier across lanes)' },
     { title: 'Investigate', detail: 'task chains under the global pool: investigator, challenger, revise, salvage' },
     { title: 'Synthesize', detail: 'dedupe, contradictions, promote to the shared board' },
@@ -202,12 +203,14 @@ const refuterPrompt = (round) => [
   `Return upheld=true only if every criterion survives your attempt to refute it.`,
 ].join('\n\n')
 
-const challengerPrompt = (t, round, n, allowRevise) => [
+const challengerPrompt = (t, round, n, allowRevise, overdue) => [
   header('challenger', round, `${t.lane}/challenger`, t.lane, ` --task ${t.id}`),
   `Review task ${t.id} — ${t.title}   (verify level: ${t.verify}, review ${n})`,
+  overdue ? `This review is overdue: the task finished ${t.status} in round ${t.round} and no review is on file, so the judge counts its findings as unverified.` : '',
   `Allowed verdicts: ${allowRevise ? 'accept | revise | redo' : 'accept | redo  (no revisions left)'}`,
   `Record it with: ${BOARD} task review --id ${t.id} --verdict V --summary S [--objection O ...] --as ${t.lane}/challenger`,
-].join('\n\n')
+  `Your returned verdict is discarded unless that command has run: only the review file counts.`,
+].filter(Boolean).join('\n\n')
 
 const salvagePrompt = (t, round, why) => [
   header('salvage', round, `skunkworks/salvage-${t.id}`, null, ` --task ${t.id}`),
@@ -430,6 +433,22 @@ if (first > B.max_rounds) {
   log(`Round ${first} exceeds max_rounds=${B.max_rounds}; only writing a checkpoint report.`)
 }
 
+// Verification debt (E6): reviews owed from earlier segments — skipped at the agent cap, or a challenger that
+// returned a verdict without recording it. Reviewed first, so the judge can count the work this segment.
+const debt = Array.isArray(A.verification_debt) ? A.verification_debt : []
+const debtReviews = []
+if (debt.length && reason === 'checkpoint') {
+  phase('Verify debt')
+  log(`Verification debt: ${debt.length} task(s) finished without a review — ${debt.map(d => d.id).join(', ')}`)
+  await Promise.all(debt.map(async d => {
+    if (!canAfford(1) || tokenLow()) { log(`${d.id}: overdue review skipped (budget)`); return }
+    const v = await run(challengerPrompt(d, first, 1, false, true),
+      opts('challenger', { label: `overdue review ${d.id}`, phase: 'Verify debt', schema: VERDICT }))
+    debtReviews.push({ id: d.id, verdict: v ? v.verdict : null })
+    log(`${d.id}: overdue review → ${v ? v.verdict : 'no verdict'}`)
+  }))
+}
+
 for (; round <= last && reason === 'checkpoint'; round++) {
   const planCost = LANES.length * 2
   if (!canAfford(planCost + 1)) { capHit = true; reason = 'agent_cap'; log(`Agent cap: ${agentsUsed}/${B.max_agents_per_segment} used; not starting round ${round}.`); break }
@@ -526,6 +545,7 @@ const cp = await run(checkpointPrompt(first, lastRound, reason, { deferred: defe
 
 return {
   reason,
+  debt_reviews: debtReviews,
   rounds_run: rounds.map(r => r.round),
   next_round: lastRound + 1,
   agents_used: agentsUsed,

@@ -196,6 +196,22 @@ def substop(data: dict, ctx: dict):
                   f"check\"] --as <you>. No review on file means the task counts as unverified.")
 
 
+def debug_log(mode: str, data: dict, ctx) -> None:
+    """When hooks/DEBUG exists next to this file, append one line per hook call: what the harness sent and what
+    was resolved. E6: PreToolUse fired for workflow agents, SubagentStop never did — this is how to find out why."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.exists(os.path.join(here, "DEBUG")):
+        return
+    try:
+        with open(os.path.join(here, "guard.log"), "a") as f:
+            f.write(json.dumps({"mode": mode, "event": data.get("hook_event_name"), "keys": sorted(data.keys()),
+                                "agent_id": data.get("agent_id"), "agent_type": data.get("agent_type"),
+                                "transcript_path": data.get("transcript_path"), "agent_transcript_path": data.get("agent_transcript_path"),
+                                "resolved": {k: ctx[k] for k in ("inv", "role", "task", "round")} if ctx else None}) + "\n")
+    except OSError:
+        pass
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
     try:
@@ -203,6 +219,7 @@ def main():
     except json.JSONDecodeError:
         return
     ctx = context(data)
+    debug_log(mode, data, ctx)
     if not ctx:
         return
     if mode == "pretool":

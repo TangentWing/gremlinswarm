@@ -3,7 +3,7 @@
 You are a Claude Code session with one job: run two prepared investigations to completion with
 the kit's real role agents, then collect a report for each. Do not edit `investigate/`,
 `tests/`, `experiments/harness/`, or anything under `investigations/`; the only files you may
-create are `experiments/e6-end-to-end/run1/REPORT-<slug>.md`.
+create are `experiments/e6-end-to-end/run2/REPORT-<slug>.md`.
 
 Repo root (your working directory): `<repo>` — the directory this file is in, two levels up.
 
@@ -17,10 +17,13 @@ end. Two shake-out runs, all ten roles on Sonnet 4.5:
 
 | Investigation | Target | Why | Budget |
 |---|---|---|---|
-| `investigations/trisvc-e6` | the experiments' own target (bursty profile) | the states x1–x3 were built from; do the pieces fire together, and does the run find the cause | 40 agents/segment, 2 rounds/segment, 4 rounds |
+| `investigations/trisvc-e6` | the experiments' own target (bursty profile) | the states x1–x3 were built from; do the pieces fire together, and does the run find the cause | 60 agents/segment, 2 rounds/segment, 4 rounds |
 | `investigations/stockd-v2` | stockd, the held-out target (never tuned on) | compare with `DESIGN.md §11`: 46 agents / 3 of 5 criteria (before), 60 (interrupted) | 60 agents/segment, 2 rounds/segment, 4 rounds |
 
-Both directories are scaffolded from the current kit and their resource probes pass.
+Both directories are scaffolded from the current kit and their resource probes pass. Run 1's results are in
+`results.md`; this is **run 2**: the verification-debt step, strategist cap 30, trisvc's cap raised to 60, and the
+guard's debug switch on (`investigate/hooks/DEBUG` exists; the guard appends every hook payload's keys to
+`investigate/hooks/guard.log` — include that file's SubagentStop lines, if any, in the report).
 
 ## Preconditions — stop and tell the user if one fails
 
@@ -47,7 +50,7 @@ stopped, do the same for `investigations/stockd-v2`.
 
 ## Collect — one report per investigation, no interpretation
 
-Write `experiments/e6-end-to-end/run1/REPORT-<slug>.md` with, in this order (verbatim where it
+Write `experiments/e6-end-to-end/run2/REPORT-<slug>.md` with, in this order (verbatim where it
 is command output; `B=investigations/<slug>/bin/board.py`):
 
 1. Segments: run id, transcript dir, stop reason, rounds run, agents used.
@@ -62,6 +65,8 @@ is command output; `B=investigations/<slug>/bin/board.py`):
    - `Context pushed to this task` in investigator transcripts: `grep -l "Context pushed to this task" <transcript dir>/agent-*.jsonl | wc -l`;
    - `judge save` refusals: `grep -l "refusing met=true" <transcript dir>/agent-*.jsonl`;
    - `plan refused` and `WARNING` lines from `plan save` in planner transcripts;
+   - the `Verify debt` phase: the workflow's `debt_reviews` in its return value, and `$B debt` at the end;
+   - `investigate/hooks/guard.log`: count of lines per `mode` (pretool / substop) and the `keys` of one substop line;
    - corrections: `grep -l '"corrections": \[[^]]' investigations/<slug>/lanes/*/tasks/*/review-*.json`;
    - strategy rejections (`keep at least two`, `names nothing new`) in strategist transcripts;
    - guard blocks: `grep -l "investigate guard:" <transcript dir>/agent-*.jsonl`, with the role of each;

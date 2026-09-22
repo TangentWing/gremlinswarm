@@ -233,6 +233,8 @@ reducer; replaces "one investigator with two children" for many-unit work.
 | stockd after | stockd | 60 (interrupted) | Round 1 alone produced root cause, reproducer, introducing commit and log timeline. The bisect lane split into two **short** tasks and planned a no-port task next round; repro finished 4 tasks. 0 guard interventions, no turn cap reached. |
 | stockd-onset | stockd | 20 | 3/3 criteria in one round. The refuter re-derived all 30 table rows and upheld the verdict (confirm-met proven live). The planner chose one grep task over a 30-item sweep — correctly. |
 | toy on Haiku 4.5 | toy-ringbuf | 14 | Correct answer with all 9 roles on Haiku 4.5, at ~2× Opus's tool calls (150 vs 73). **The refuter hit its 15-turn cap and returned no verdict, so `met` was accepted unconfirmed** — the safety check silently didn't run. |
+| **v2 slice, trisvc** (E6) | trisvc, bursty | 64 | Root cause, mechanism and both rivals correct and verified; 5 traces on the board but 4 rested on a task never reviewed (cap skip + a challenger that never recorded its verdict) → judge counted them unverified → `stall`. Led to `board.py debt` and the segment-start review of verification debt. |
+| **v2 slice, stockd** (E6) | stockd (held out) | 60 | **4 of 5 criteria** with the generator's answers (commit, race at file:line, amplifier, reproducer, onset); the fifth needs human data and the run asked for it. The round-2 strategist died at its 20-turn cap with no position saved. |
 | toy on Sonnet 4.5 | toy-ringbuf | 13 | Correct answer with all 9 roles on Sonnet 4.5 (after the refuter fix), 123 tool calls. Refuter returned a real verdict in 12 of 30 turns; no retry, no structured-output misses, no guard hits. Sonnet 4 itself is retired and fails fast (0 tokens) via the failure guard. |
 
 Repairs those runs drove: exclusive claims shown to planners (and "never make a task long
@@ -318,6 +320,19 @@ a long task yields its exclusive claim to another lane's pending short task; the
 uncited lane `note` entries (x3: the true lead was a note marked "not followed up"); a strategy
 status change must cite evidence that is new since the previous position (`strategy delta`), not
 merely some id.
+
+**E6 (2026-09-22, `experiments/e6-end-to-end/results.md`).** The slice ran end to end under the
+plugin on both targets with correct answers (stockd: 4 of 5 criteria, the fifth human-gated; trisvc:
+everything on the board, 2 of 3 verified). Two holes, both fixed here: **verification debt** — reviews
+skipped at the agent cap, and two challengers that returned `accept` as structured output without
+running `task review`, left correct work "unverified", and a stalled run with the answer on the
+board; `board.py debt` / `wf-args.verification_debt` lists finished tasks with no review on file, and
+`investigate.js` reviews them first in the next segment. **The SubagentStop gate never fired** for a
+workflow agent (0 of 124 transcripts, while PreToolUse fired 6 times): the stop-gates are inert in
+workflows and the file-based fallbacks are what hold; `touch hooks/DEBUG` logs every hook payload
+so the next run shows what arrives. Strategist cap 30 with a save-early rule (stockd's round-2
+strategist died at 20 with nothing saved). kb pages were never written in either run: `context`
+carried the facts; pages need a trigger (the consult mechanism, DESIGN_V2 §3.3).
 
 ## 12. Known v1 limits
 

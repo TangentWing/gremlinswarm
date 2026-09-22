@@ -15,3 +15,7 @@ targets/
 
 # local planning notes (not committed)
 V2_FEATURES.md
+
+# guard hook debug switch and its log (touch investigate/hooks/DEBUG to enable)
+investigate/hooks/DEBUG
+investigate/hooks/guard.log

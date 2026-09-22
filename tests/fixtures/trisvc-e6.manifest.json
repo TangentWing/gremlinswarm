@@ -109,7 +109,7 @@
   "max_concurrent": 4,
   "rounds_per_checkpoint": 2,
   "max_rounds": 4,
-  "max_agents_per_segment": 40,
+  "max_agents_per_segment": 60,
   "max_tasks_per_lane_round": 2,
   "verify_rounds": 2,
   "max_children": 0,

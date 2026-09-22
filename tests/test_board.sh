@@ -278,6 +278,15 @@ expect_fail "a long task on an exclusive resource another lane has queued for" s
 { echo '{"tasks":[{"id":"static-r01-01","title":"probe","objective":"o","deliverable":"d","resources":["armbox_port_9000"]},{"id":"static-r01-02","title":"probe2","objective":"o","deliverable":"d","resources":["armbox_port_9000"]}]}' | b4 plan save --lane static --as static/plan | grep -q "WARNING exclusive-fanin"; } || fail "fanin warning"; ok "plan save warns on exclusive fan-in"
 { b4 lint | grep -q "exclusive-fanin"; } || fail "lint fanin"; ok "lint reports the fan-in"
 
+echo "== verification debt"
+{ b4 debt | grep -q "no verification debt"; } || fail "debt empty"; ok "no debt while every finished task is reviewed"
+echo '{"tasks":[{"id":"logs-r03-01","title":"unreviewed work","objective":"o","deliverable":"d","verify":"light"}]}' | b4 plan save --lane logs --as logs/plan >/dev/null
+b4 task start --id logs-r03-01 --as logs/logs-r03-01 >/dev/null; b4 task finish --id logs-r03-01 --status done --summary "done, never reviewed" --as logs/logs-r03-01 >/dev/null
+{ b4 debt | grep -q "logs-r03-01 \[light\] finished done"; } || fail "debt lists it"; ok "a finished task with no review is verification debt"
+{ b4 wf-args | python3 -c "import json,sys;d=json.load(sys.stdin)['verification_debt'];assert [x['id'] for x in d]==['logs-r03-01'] and d[0]['lane']=='logs' and d[0]['verify']=='light'"; } || fail "wf-args debt"; ok "wf-args carries the debt with lane and verify level"
+b4 task review --id logs-r03-01 --verdict accept --summary "checked" --as logs/challenger >/dev/null
+{ b4 debt | grep -q "no verification debt"; } || fail "debt cleared"; ok "the review clears it"
+
 echo "== concurrency: 40 parallel posts"
 for i in $(seq 1 40); do b post --lane logs --kind note --subject "n$i" --as logs/p >/dev/null & done; wait
 python3 - "$S" <<'EOF'

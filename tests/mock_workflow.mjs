@@ -172,6 +172,22 @@ await test('the short claimant from another lane starts before the long task', (
   assert.ok(!overlap(l, sh))
 })
 
+console.log('== scenario: verification debt is reviewed before planning')
+const debtRun = await harness({
+  args: { ...BASE_ARGS, budget: { ...BASE_ARGS.budget, rounds_per_checkpoint: 1 },
+          verification_debt: [{ id: 'experiments-r01-03', lane: 'experiments', title: 'owed', verify: 'light', status: 'done', round: 1 }] },
+  plans: { 1: { static: ['static-r01-01'] } },
+  judge: () => ({ met: true, progress: true }),
+})
+await test('the overdue review runs first and is recorded in the result', () => {
+  const rev = starts(debtRun.trace, e => e.label === 'overdue review experiments-r01-03')[0]
+  const scope = starts(debtRun.trace, e => e.role === 'scope')[0]
+  assert.ok(rev, 'overdue review must run')
+  assert.ok(rev.at <= scope.at, `review ${rev.at} should start before planning ${scope.at}`)
+  assert.deepEqual(debtRun.result.debt_reviews, [{ id: 'experiments-r01-03', verdict: 'accept' }])
+  assert.ok(debtRun.logs.some(l => l.startsWith('Verification debt: 1 task(s)')))
+})
+
 console.log('== scenario: strategist wake rule')
 await test('strategist runs after the judge when no strategy exists, then is skipped on a quiet round', () => {
   // full: round 1 (no strategy yet) → strategist; round 2 met → stop before any strategist
