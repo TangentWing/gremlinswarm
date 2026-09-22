@@ -10,7 +10,7 @@ tool calls vs each role's turn cap, and the judge/refuter outcome.
 import collections, glob, json, os, re, sys
 
 CAPS = {"scope": 15, "plan": 12, "investigator": 45, "challenger": 35, "salvage": 25,
-        "synthesizer": 25, "judge": 25, "refuter": 40, "strategist": 15, "checkpoint": 20}
+        "synthesizer": 25, "judge": 25, "refuter": 40, "strategist": 20, "checkpoint": 20}
 
 
 def main(tdir, inv=None):

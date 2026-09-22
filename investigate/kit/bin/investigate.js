@@ -317,6 +317,10 @@ const waitChange = async () => { if (!dirty) await new Promise(r => { wake = r }
 
 const exclusiveOf = t => t.resources.filter(r => EXCL.has(r))
 const claimsFree = t => exclusiveOf(t).every(r => !held.has(r))
+// x2 lint, scheduler side: a long task must not take an exclusive resource while another lane's short
+// task is waiting for it (stockd-before: one long bisect held the port all round and starved repro).
+const yieldsToShort = t => t.size === 'long' && pending.some(p => p !== t && p.lane !== t.lane && p.size !== 'long'
+  && exclusiveOf(p).some(r => exclusiveOf(t).includes(r)))
 function depState(t) {
   for (const d of t.deps) {
     if (finished.has(d)) { if (!['done', 'partial'].includes(finished.get(d))) return 'failed'; continue }
@@ -330,6 +334,7 @@ function whyBlocked(t) {
   const ds = depState(t)
   if (ds === 'wait') return `waiting on deps ${t.deps.join(',')}`
   if (!claimsFree(t)) return `resource busy: ${exclusiveOf(t).filter(r => held.has(r)).join(',')}`
+  if (yieldsToShort(t)) return `long task yields its exclusive claim to another lane's short task`
   if (systemic()) return 'agents failing (API / rate / session limit)'
   if (capHit) return 'agent cap for this segment'
   if (tokenStop) return 'token budget'
@@ -362,7 +367,7 @@ function pump(round) {
       log(`${t.id}: not started — a dependency did not succeed (stays queued for the planner)`)
       continue
     }
-    if (ds === 'wait' || !claimsFree(t) || inflight.size >= B.max_concurrent) { i++; continue }
+    if (ds === 'wait' || !claimsFree(t) || yieldsToShort(t) || inflight.size >= B.max_concurrent) { i++; continue }
     if (systemic()) { i++; continue }
     if (!canAfford(1) || tokenLow()) { if (!tokenStop) capHit = true; i++; continue }
     pending.splice(i, 1)

@@ -40,6 +40,8 @@ Quick reference (all commands accept --as AUTHOR and --inv PATH):
   validate | scaffold | wf-args [--rounds N]
   archetypes [--show NAME]            lane archetypes available to this investigation
   probe [--lane L] [--resource R]     run resources' non-destructive `check` commands
+  lint [--round N]                    cross-lane plan checks (a long task holding an exclusive resource another
+                                      lane queued for, fan-in on one exclusive resource, shared working dirs, dead deps)
   digest                              facts for verdict roles: review status behind each shared entry,
                                       open lane hypotheses / questions / contradictions no shared entry cites
   kb save --slug S --title T [--match a,b] [--refs x,y]   (stdin → kb/<slug>.md: a mechanism page, not evidence)
@@ -889,16 +891,92 @@ def cmd_plan(args):
             for d in t["deps"]:
                 if d not in known:
                     die(f"task {t['id']}: unknown dependency '{d}'")
-        if old["version"] > 0:
-            write_json(root / "lanes" / lane / "archive" / f"plan.v{old['version']:03d}.json", old)
         plan = {"lane": lane, "version": old["version"] + 1, "round": rnd, "ts": now(),
                 "author": author(args), "notes": incoming.get("notes", ""), "tasks": carried + new_tasks}
+        # cross-lane lint against the other lanes' current plans: a long task on a contested exclusive
+        # resource is refused (it starves the other lane for the whole round); the rest are warnings
+        others = {ln: load_json(root / "lanes" / ln / "plan.json", {"lane": ln, "tasks": []})
+                  for ln in lane_names(root) if ln != lane}
+        findings = plan_lint(root, m, {**others, lane: plan})
+        hard = [f for f in findings if f[0] == "long-exclusive" and f[1] == lane]
+        if hard:
+            die("plan refused:\n  " + "\n  ".join(f[2] for f in hard))
+        warnings = [f for f in findings if f[1] in (lane, "all") and f[0] != "long-exclusive"]
+        if old["version"] > 0:
+            write_json(root / "lanes" / lane / "archive" / f"plan.v{old['version']:03d}.json", old)
         write_json(ppath, plan)
     worklog(root, lane, "plan-save", author(args), version=plan["version"],
             summary=f"{len(queued)} queued, {len(drop)} dropped")
     dispatch = [{k: t[k] for k in ("id", "title", "kind", "resources", "deps", "verify", "size", "items") if k in t}
                 for t in queued]
     print(json.dumps({"version": plan["version"], "dispatch": dispatch}, indent=1))
+    for code, _, detail in warnings:
+        print(f"WARNING {code}: {detail}")
+
+
+# ---------------------------------------------------------------- plan lint
+
+WORKDIR_RE = re.compile(r"((?:/tmp|/var|/home|/Users|~)/[\w./-]+|lanes/\w+/tasks/[\w./-]+)")
+
+
+def plan_lint(root: Path, m: dict, plans: dict, rnd: int | None = None) -> list[tuple[str, str, str]]:
+    """Cross-lane checks on queued plans (or, with rnd, on the tasks planned in that round). Returns
+    (code, lane, detail). x2: on the real stockd histories this fires on both known plan failures and on
+    nothing else — the round-1 `long` task that held the exclusive port while another lane queued for it
+    cost that run two criteria."""
+    excl = {r["name"] for r in m.get("resources", []) if r.get("exclusive")}
+    budget = {**DEFAULT_BUDGET, **m.get("budget", {})}
+    raw = [t.get("path") for t in m.get("targets", [])] + [r.get("access", "").split()[0] for r in m.get("resources", []) if r.get("access")]
+    inputs = {str(Path(p).expanduser()) for p in raw if p and p.startswith(("/", "~"))}
+    inputs |= {str(Path(p).parent) for p in inputs}
+    queued = {ln: [t for t in p["tasks"] if (t.get("planned_round") == rnd if rnd else t.get("status") == "queued")]
+              for ln, p in plans.items()}
+    status = {t["id"]: t.get("status") for p in plans.values() for t in p["tasks"]}
+    out = []
+    claims: dict[str, list] = {}
+    for ln, ts in queued.items():
+        for t in ts:
+            for r in t.get("resources", []):
+                if r in excl:
+                    claims.setdefault(r, []).append((ln, t))
+    for r, cs in claims.items():
+        lanes = {l for l, _ in cs}
+        for ln, t in cs:
+            if t.get("size") == "long" and len(lanes) > 1:
+                others = sorted(l for l in lanes if l != ln)
+                out.append(("long-exclusive", ln, f"{t['id']} is long and holds exclusive '{r}' that {', '.join(others)} also queued "
+                                                    f"for; split it so the resource is released between steps"))
+        if len(cs) > 2:
+            out.append(("exclusive-fanin", "all", f"{len(cs)} queued tasks claim exclusive '{r}' (they serialise): "
+                                                  + ", ".join(t["id"] for _, t in cs)))
+    seen: dict[str, str] = {}
+    for ln, ts in queued.items():
+        ids = {t["id"] for t in ts}
+        for t in ts:
+            for d in set(WORKDIR_RE.findall(t.get("instructions", "") + " " + t.get("deliverable", ""))):
+                if d.startswith(f"lanes/{ln}/tasks/{t['id']}") or any(d.startswith(i) for i in inputs):
+                    continue
+                if d.startswith("lanes/") and d.split("/")[3] not in ids:
+                    continue    # an earlier task's artifacts, read by several tasks
+                if d in seen and seen[d] != t["id"]:
+                    out.append(("same-dir", ln, f"{t['id']} and {seen[d]} both name {d}"))
+                seen.setdefault(d, t["id"])
+            for d in t.get("deps", []):
+                if d not in ids and status.get(d) not in ("done", "partial"):
+                    out.append(("dead-dep", ln, f"{t['id']} depends on {d}, which is {status.get(d, 'unknown')}"))
+        if len(ts) > budget["max_tasks_per_lane_round"]:
+            out.append(("over-cap", ln, f"{len(ts)} queued > max_tasks_per_lane_round={budget['max_tasks_per_lane_round']}"))
+    return out
+
+
+def cmd_lint(args):
+    root = inv_root(args)
+    plans = {ln: load_json(root / "lanes" / ln / "plan.json", {"lane": ln, "tasks": []}) for ln in lane_names(root)}
+    findings = plan_lint(root, manifest(root), plans, args.round)
+    for code, ln, detail in findings:
+        print(f"{code} {ln}: {detail}")
+    if not findings:
+        print("(no findings)")
 
 
 # ---------------------------------------------------------------- knowledge base
@@ -1314,6 +1392,11 @@ def cmd_digest(args):
     print("Open hypotheses, questions and contradictions on lane boards that no shared entry cites:")
     for e in loose:
         print(f"  {e['id']} [{e['kind']}/{e.get('confidence', '-')}] {e['subject']}  (lane {e['lane']})")
+    notes = uncited_open(root, {"note"})
+    if notes:
+        print("Lane notes nothing cites (not rivals; may hold a lead nobody followed):")
+        for e in notes:
+            print(f"  {e['id']} [note/{e.get('confidence', '-')}] {e['subject']}  (lane {e['lane']})")
     if not loose:
         print("  (none)")
 
@@ -1414,10 +1497,17 @@ def cmd_strategy(args):
     if old:
         before = {h["name"]: h["status"] for h in old["hypotheses"]}
         moved = [h["name"] for h in hy if before.get(h["name"]) not in (None, h["status"])]
-        if moved and not s.get("cites"):
-            die(f"status changed for {', '.join(moved)} but 'cites' names no new evidence ids. A strategy that moves "
-                f"without new evidence makes planners drop queued work; cite the entries that justify the change, "
-                f"or keep the previous statuses and set change='none'.")
+        then, marks = old.get("marks", {}), board_marks(root)
+        new_ids = set()
+        for ln in lane_names(root) + ["shared"]:
+            entries, sup = materialize(read_jsonl(board_path(root, ln)))
+            new_ids |= {e["id"] for i, e in enumerate(entries.values()) if i >= then.get(ln, 0) and e["id"] not in sup}
+        new_ids |= {f"judge-r{n}" for n in range(then.get("judge_round", 0) + 1, marks["judge_round"] + 1)}
+        if moved and not (set(s.get("cites") or []) & new_ids):
+            die(f"status changed for {', '.join(moved)} but 'cites' names nothing new since v{old['version']}. A strategy "
+                f"that moves without new evidence makes planners drop queued work; cite entries from `strategy delta` "
+                f"(new: {', '.join(sorted(new_ids)[:8]) or 'none — nothing has changed'}), or keep the previous "
+                f"statuses and set change='none'.")
         if not moved and s.get("change", "none") != "none" and not s.get("cites"):
             die("'change' is not 'none' but no hypothesis status moved and 'cites' is empty — say 'none'")
     rec = {"version": version, "round": args.round, "ts": now(), "by": author(args), "hypotheses": hy,
@@ -1643,6 +1733,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--task")
     s.add_argument("--round", type=int)
     sp("digest", cmd_digest)
+    s = sp("lint", cmd_lint)
+    s.add_argument("--round", type=int, help="replay: lint the tasks planned in that round instead of the queued ones")
     s = sp("status", cmd_status)
     s.add_argument("--json", action="store_true")
     s = sp("wf-args", cmd_wf_args)

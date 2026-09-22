@@ -154,6 +154,24 @@ await test('checkpoint runs after draining long tasks', () => {
   assert.ok(cp && cp.at >= e1[1])
 })
 
+console.log('== scenario: a long task yields its exclusive claim to another lane\'s short task')
+const yieldRun = await harness({
+  args: { ...BASE_ARGS, lanes: ['static', 'logs', 'experiments', 'skunkworks'], budget: { ...BASE_ARGS.budget, max_concurrent: 1, rounds_per_checkpoint: 1 } },
+  tasks: {
+    'static-r01-01': { resources: ['repo'], deps: [], verify: 'none', size: 'short', dur: 120 },   // holds the only slot while the others queue
+    'logs-r01-01': { resources: ['port'], deps: [], verify: 'none', size: 'long', dur: 60 },
+    'experiments-r01-01': { resources: ['port'], deps: [], verify: 'none', size: 'short', dur: 30 },
+  },
+  plans: { 1: { static: ['static-r01-01'], logs: ['logs-r01-01'], experiments: ['experiments-r01-01'] } },
+  judge: () => ({ met: true, progress: true }),
+})
+await test('the short claimant from another lane starts before the long task', () => {
+  const l = window(yieldRun.trace, 'logs-r01-01'), sh = window(yieldRun.trace, 'experiments-r01-01')
+  assert.ok(l && sh, `both must run: long ${l}, short ${sh}`)
+  assert.ok(sh[0] < l[0], `short ${sh} should start before long ${l}`)
+  assert.ok(!overlap(l, sh))
+})
+
 console.log('== scenario: strategist wake rule')
 await test('strategist runs after the judge when no strategy exists, then is skipped on a quiet round', () => {
   // full: round 1 (no strategy yet) → strategist; round 2 met → stop before any strategist

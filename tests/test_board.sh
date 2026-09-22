@@ -265,6 +265,19 @@ expect_fail "status change without cites" sh -c "echo '{\"hypotheses\":[{\"name\
   | b4 strategy save --round 4 --as strategist | grep -q "strategy v2 saved"; } || fail "strategy v2"; ok "a status change with cited evidence saves as v2"
 { [ -f "$S4/shared/archive/strategy.v001.json" ] && b4 strategy show | grep -q "Changed since v1"; } || fail "strategy archive"; ok "the previous position is archived and the change rendered"
 
+echo "== slice follow-up: lint, notes in the digest, strategy cites must be new"
+NOTE=$(b4 post --lane logs --kind note --subject "gateway builds the key from rid and attempt (not followed up)" --body "x" --confidence low --as logs/x)
+{ b4 digest | grep -q "Lane notes nothing cites" && b4 digest | grep -q "$NOTE"; } || fail "digest notes"; ok "digest lists uncited lane notes"
+expect_fail "status change citing only old evidence" sh -c "echo '{\"hypotheses\":[{\"name\":\"misaligned cast\",\"status\":\"leading\",\"reason\":\"r\"},{\"name\":\"stale length prefix\",\"status\":\"live\",\"reason\":\"r\"}],\"change\":\"flip back\",\"cites\":[\"$NEW\"]}' | python3 $S4/bin/board.py strategy save --round 5 --as strategist"
+{ echo "{\"hypotheses\":[{\"name\":\"misaligned cast\",\"status\":\"leading\",\"reason\":\"r\"},{\"name\":\"stale length prefix\",\"status\":\"live\",\"reason\":\"r\"}],\"change\":\"flip back\",\"cites\":[\"$NOTE\"]}" \
+  | b4 strategy save --round 5 --as strategist | grep -q "strategy v3 saved"; } || fail "strategy v3"; ok "a status change citing an entry new since v2 saves"
+{ b4 lint | grep -q "no findings"; } || fail "lint clean"; ok "lint: no findings on clean plans"
+{ echo '{"tasks":[{"id":"static-r01-01","title":"probe","objective":"o","deliverable":"d","resources":["armbox_port_9000"]}]}' | b4 plan save --lane static --as static/plan >/dev/null; } || fail "short claim"; ok "a short task may claim an exclusive resource"
+expect_fail "a long task on an exclusive resource another lane has queued for" sh -c "echo '{\"tasks\":[{\"id\":\"experiments-r01-01\",\"title\":\"soak\",\"objective\":\"o\",\"deliverable\":\"d\",\"resources\":[\"armbox_port_9000\"],\"size\":\"long\"}]}' | python3 $S4/bin/board.py plan save --lane experiments --as experiments/plan"
+{ echo '{"tasks":[{"id":"experiments-r01-01","title":"soak","objective":"o","deliverable":"d","resources":["armbox_port_9000"],"size":"short"}]}' | b4 plan save --lane experiments --as experiments/plan >/dev/null; } || fail "resave short"; ok "the same task saves as short"
+{ echo '{"tasks":[{"id":"static-r01-01","title":"probe","objective":"o","deliverable":"d","resources":["armbox_port_9000"]},{"id":"static-r01-02","title":"probe2","objective":"o","deliverable":"d","resources":["armbox_port_9000"]}]}' | b4 plan save --lane static --as static/plan | grep -q "WARNING exclusive-fanin"; } || fail "fanin warning"; ok "plan save warns on exclusive fan-in"
+{ b4 lint | grep -q "exclusive-fanin"; } || fail "lint fanin"; ok "lint reports the fan-in"
+
 echo "== concurrency: 40 parallel posts"
 for i in $(seq 1 40); do b post --lane logs --kind note --subject "n$i" --as logs/p >/dev/null & done; wait
 python3 - "$S" <<'EOF'

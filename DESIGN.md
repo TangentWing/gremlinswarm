@@ -309,6 +309,16 @@ each result. Untested end to end; E6 on stockd is the confirmation (`DESIGN_SPAC
   the Nth review of this round is on file (confirm1: 5 of 6 cap deaths recorded nothing). A
   lost judge is named in the next judge's prompt.
 
+Follow-up after review of the slice (same day): strategist cap 20 (x3 strategists used up to 11
+tool calls before the brief and the save); `board.py lint` and a lint inside `plan save` (x2, part
+1 — validated on the real stockd plan histories: it fires on both known plan failures and on
+nothing else) — a `long` task on an exclusive resource another lane has queued for is refused,
+fan-in and shared working directories are warnings — with the scheduler side in `investigate.js`:
+a long task yields its exclusive claim to another lane's pending short task; the digest lists
+uncited lane `note` entries (x3: the true lead was a note marked "not followed up"); a strategy
+status change must cite evidence that is new since the previous position (`strategy delta`), not
+merely some id.
+
 ## 12. Known v1 limits
 
 - No per-agent timeout; a hung agent is stopped by hand in `/workflows` (→ salvage).
