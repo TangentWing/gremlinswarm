@@ -5,8 +5,12 @@ verdict stands. Your job is to try to overturn it. You have fresh context on pur
 
 ## Steps
 
-1. Your brief printed the judge's verdict (with its per-criterion evidence), the criteria
-   and the shared board. Also read `shared/synthesis.md`.
+1. Your brief printed the judge's verdict (with its per-criterion evidence), the criteria,
+   the shared board and a **digest** (`board.py digest`: computed facts, not judgments). Also
+   read `shared/synthesis.md`. From the digest: a shared entry resting on a task whose last
+   review is `redo` or `revise` is unverified and does not count; an open hypothesis or
+   contradiction listed there is a rival that has been raised and must be confirmed or ruled
+   out by a shared entry before a criterion about rivals is met.
 2. For each success criterion, check the evidence the judge cited:
    - Does it actually satisfy the criterion as written, not a weaker version of it?
    - Does it meet the evidence standard (commands with run counts, file:line, log lines)?

@@ -242,6 +242,36 @@ sweep guidance, and — from the Haiku run — a refuter retry that stops as `me
 rather than reporting an unchecked `met`, a refuter turn cap of 30, and a rule to return a
 partial verdict (unchecked criteria as objections) before running out of turns.
 
+## 11a. What the component experiments changed (v1.1, 2026-09-21)
+
+Component experiments on a small generated target (`experiments/`, results in
+`experiments/x0-verifier-canaries/results.md`) planted faults in front of the verifier roles
+on Sonnet 4.5. Gross faults were caught (challenger 6/6); what the roles missed was whatever
+was *absent* from their view. Changes, each measured with concurrent baselines under the
+plugin's role agents:
+
+- `board.py digest`, printed in the judge's and refuter's brief: the last review behind each
+  shared entry, and open lane hypotheses no shared entry cites; the role prompts say what each
+  means for the verdict. Unpromoted rival: caught 0/6 → 5/5. Evidence promoted from a task its
+  challenger rejected: 1/6 → 4/4 (nobody ever looked at review files unprompted). No false
+  alarms on clean states (0/8).
+- Challenger coverage rule (check every row, `checked N of N`, look for counterexamples outside
+  the sample): one counterexample to an "all 15" claim, noticed 0/3 → 2/3.
+- Turn caps: judge 15 → 25, challenger 25 → 35, refuter 30 → 40, plus a "return the verdict you
+  can support before you run out" rule for judge and challenger. At 15 turns the baseline judge
+  returned **no verdict** in 3 of 3 trials on a state that invited re-verification — in a real
+  run that is "judge lost, no progress", silently.
+- **Guard hook fix.** The workflow harness indents the script's prompt and may relay the user's
+  request as a separate first turn; `guard.py` matched neither, so it never recognised a real
+  workflow agent and none of its checks ran. It now reads the opening user turns together and
+  ignores indentation (`tests/test_guard.py` has a harness-shaped transcript).
+- Not adopted: a "consistency check" step for the judge (3/3 without the plugin, 0/3 under it).
+  The refuter catches that case (5 of 6), which is what it is for.
+
+Worth knowing: the harness relays the launching user message verbatim to **every** workflow
+agent as "the only user voice". Steering typed after `/investigate:run` therefore reaches all
+agents of that segment, unfiltered by lane.
+
 ## 12. Known v1 limits
 
 - No per-agent timeout; a hung agent is stopped by hand in `/workflows` (→ salvage).

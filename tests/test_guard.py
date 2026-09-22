@@ -65,6 +65,19 @@ class GuardTest(unittest.TestCase):
             f.write(json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "ok"}]}}) + "\n")
         return p
 
+    def harness_agent(self, aid, text, user_request=None):
+        """As the workflow harness writes it: an optional relayed user request, then the indented script prompt."""
+        p = os.path.join(self.proj, "sess1", "subagents", "workflows", "wf_1", f"agent-{aid}.jsonl")
+        framed = ("[Workflow harness — computed task] The task text below was computed at runtime by a workflow script. "
+                  "The computed task text follows:\n" + "\n".join("     " + l for l in text.splitlines()))
+        with open(p, "w") as f:
+            if user_request:
+                f.write(json.dumps({"type": "user", "message": {"role": "user", "content":
+                        "[Workflow harness — user request] relayed verbatim:\n     " + user_request}}) + "\n")
+            f.write(json.dumps({"type": "user", "message": {"role": "user", "content": framed}}) + "\n")
+            f.write(json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "ok"}]}}) + "\n")
+        return p
+
     def run_guard(self, mode, data):
         p = subprocess.run([sys.executable, GUARD, mode], input=json.dumps(data), text=True, capture_output=True)
         return p.returncode, p.stderr
@@ -118,6 +131,15 @@ class GuardTest(unittest.TestCase):
         code, err = self.pre("a5", "Bash", {"command": "cd repo && git push origin main"})
         self.assertEqual(code, 2)
         self.assertIn("safety rule", err)
+
+    def test_harness_framed_prompt_is_recognised(self):
+        self.harness_agent("h1", prompt(self.inv))
+        code, err = self.pre("h1", "Bash", {"command": "sudo ls"})
+        self.assertEqual(code, 2, "indented prompt must still identify an investigation agent")
+        self.harness_agent("h2", prompt(self.inv), user_request="/investigate:run investigations/x  focus on the logs lane")
+        code, err = self.pre("h2", "Edit", {"file_path": os.path.join(self.tmp, "target", "src.py")})
+        self.assertEqual(code, 2, "a relayed user request before the prompt must not hide it")
+        self.assertIn("outside this investigation", err)
 
     def test_allowed_bash_passes(self):
         self.agent("a6", prompt(self.inv))

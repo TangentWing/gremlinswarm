@@ -33,6 +33,9 @@ tests/
   wf_metrics.py                  per-agent tool/token metrics from a workflow transcript dir
   make_smoke.sh                  builds investigations/<name>/ from kit + tests/fixtures/<name>.manifest.json
   fixtures/                      smoke-test manifests
+experiments/                     component experiments for the v2 design questions (DESIGN_SPACE.md):
+                                 a small generated target, scripted states with planted faults,
+                                 a single-role trial harness and a scorer (experiments/README.md)
 examples/toy-ringbuf/            tiny target with a planted bug (for a smoke test)
 examples/stockd/                 harder target: generated repo history with a planted race,
                                  production logs, red herrings (build_target.py, verify_target.sh)

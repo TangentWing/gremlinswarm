@@ -195,6 +195,11 @@ python3 "$S3/bin/board.py" scaffold >/dev/null
 { python3 "$S3/bin/board.py" segment close --start 1 --end 1 --reason met_unconfirmed --as checkpoint | grep -q "met_unconfirmed"; } || fail "segment close met_unconfirmed"; ok "segment close accepts met_unconfirmed"
 { python3 "$S3/bin/board.py" status | grep -q "status met_unconfirmed"; } || fail "status shows met_unconfirmed"; ok "state records met_unconfirmed, distinct from met"
 
+echo "== digest"
+{ b digest | grep -q "Review status of the work behind each shared entry"; } || fail "digest prints"; ok "digest prints"
+{ b brief --role judge | grep -q "state: board.py digest"; } || fail "judge brief includes the digest"; ok "judge brief includes the digest"
+{ b brief --role refuter | grep -q "state: board.py digest"; } || fail "refuter brief includes the digest"; ok "refuter brief includes the digest"
+
 echo "== write guard"
 { echo hi | b write --path lanes/static/scope/round-01.md >/dev/null; } || fail "write inside inv dir"; ok "write inside inv dir"
 expect_fail "writing manifest.json" sh -c "echo hi | python3 $S/bin/board.py write --path manifest.json"

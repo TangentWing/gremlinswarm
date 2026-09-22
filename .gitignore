@@ -12,3 +12,6 @@ __pycache__/
 
 # generated investigation targets (examples/*/build_target.py)
 targets/
+
+# local planning notes (not committed)
+V2_FEATURES.md

@@ -40,6 +40,8 @@ Quick reference (all commands accept --as AUTHOR and --inv PATH):
   validate | scaffold | wf-args [--rounds N]
   archetypes [--show NAME]            lane archetypes available to this investigation
   probe [--lane L] [--resource R]     run resources' non-destructive `check` commands
+  digest                              facts for verdict roles: review status behind each shared entry,
+                                      open lane hypotheses / questions / contradictions no shared entry cites
   brief --role R [--lane L] [--task T] [--round N]   everything an agent needs, in one call
 """
 from __future__ import annotations
@@ -1103,6 +1105,53 @@ def cmd_judge(args):
         print(files[-1].read_text())
 
 
+# ---------------------------------------------------------------- verification digest
+
+BOARD_ID_RE = re.compile(r"B-[a-z][a-z0-9_]*-\d{4}")
+
+
+def cmd_digest(args):
+    """Facts a judge or refuter would otherwise have to dig for (and, measured, does not): whether the work behind
+    each shared entry was accepted by its challenger, and what is still open on lane boards but absent from shared."""
+    root = inv_root(args)
+    shared, sup = materialize(read_jsonl(board_path(root, "shared")))
+    lane_entries = {}
+    for lane in lane_names(root):
+        lane_entries.update(materialize(read_jsonl(board_path(root, lane)))[0])
+    plan_status = all_task_ids(root)                # a `redo` review shows here as needs_redo
+    produced = {}                                   # board id -> (task id, task status, last review)
+    for res in sorted(root.glob("lanes/*/tasks/*/result.json")):
+        r = load_json(res)
+        reviews = sorted(res.parent.glob("review-*.json"))
+        for bid in r.get("board_ids", []):
+            produced[bid] = (r["id"], plan_status.get(r["id"], r.get("status")), load_json(reviews[-1]) if reviews else None)
+    print("Review status of the work behind each shared entry:")
+    cited_anywhere, shown = set(), False
+    for sid, e in shared.items():
+        if sid in sup:
+            continue
+        cited = sorted(set(BOARD_ID_RE.findall(" ".join(e.get("refs", [])) + " " + e.get("body", ""))) - {sid})
+        cited_anywhere.update(cited)
+        if e.get("status") in ("refuted", "irrelevant"):
+            print(f"  {sid} is marked {e['status']}.")
+            shown = True
+        for c in cited:
+            if c in produced:
+                tid, status, last = produced[c]
+                rv = f"last review: {last['verdict']} — {last['summary'][:140]}" if last else "never reviewed"
+                print(f"  {sid} cites {c}, from task {tid} ({status}); {rv}")
+                shown = True
+    if not shown:
+        print("  (no shared entry cites reviewed task output)")
+    loose = [e for bid, e in lane_entries.items() if e.get("kind") in ("hypothesis", "question", "contradiction")
+             and e.get("status", "open") == "open" and bid not in cited_anywhere and bid not in sup]
+    print("Open hypotheses, questions and contradictions on lane boards that no shared entry cites:")
+    for e in loose:
+        print(f"  {e['id']} [{e['kind']}/{e.get('confidence', '-')}] {e['subject']}  (lane {e['lane']})")
+    if not loose:
+        print("  (none)")
+
+
 # ---------------------------------------------------------------- brief
 
 # State each role needs up front; saves agents several opening tool calls.
@@ -1116,8 +1165,8 @@ BRIEF_STATE = {
     "salvage": lambda a: ([["task", "show", "--id", a.task], ["leftovers", "--lane", lane_of_task(a.task)]]
                           if a.task else []),
     "synthesizer": lambda a: [["query", "--lane", "all"] + (["--round", str(a.round)] if a.round else [])],
-    "judge": lambda a: [["judge", "show"], ["steer", "list"], ["query", "--lane", "shared", "--format", "full"]],
-    "refuter": lambda a: [["judge", "show"], ["query", "--lane", "shared", "--format", "full"]],
+    "judge": lambda a: [["judge", "show"], ["steer", "list"], ["query", "--lane", "shared", "--format", "full"], ["digest"]],
+    "refuter": lambda a: [["judge", "show"], ["query", "--lane", "shared", "--format", "full"], ["digest"]],
     "checkpoint": lambda a: [["status"], ["questions"], ["leftovers"]],
 }
 
@@ -1296,6 +1345,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--lane")
     s.add_argument("--task")
     s.add_argument("--round", type=int)
+    sp("digest", cmd_digest)
     s = sp("status", cmd_status)
     s.add_argument("--json", action="store_true")
     s = sp("wf-args", cmd_wf_args)

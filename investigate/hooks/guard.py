@@ -9,6 +9,9 @@
 
 It acts only on agents whose own transcript starts with an investigation prompt
 ("Investigation directory: ..."), so it is a no-op for every other session and agent.
+The workflow harness frames that prompt: it indents the script's text, and when a user request
+triggered the run it relays that request as a separate user turn first. So the opening user
+turns are read together, and the prompt's lines are matched with any indentation.
 Blocking uses exit code 2 with the reason on stderr (fed back to the agent).
 Fails open: if the context can't be resolved, the call is allowed.
 
@@ -23,16 +26,17 @@ import sys
 
 ROLE_RE = re.compile(r"You are the (\w+) in a structured investigation")
 PATTERNS = {
-    "inv": re.compile(r"^Investigation directory: (.+)$", re.M),
-    "task": re.compile(r"^Task: (\S+)", re.M),
-    "item": re.compile(r"^SWEEP ITEM (\d+)/(\d+)", re.M),
-    "round": re.compile(r"^Round: (\d+)", re.M),
+    "inv": re.compile(r"^[ \t]*Investigation directory: (.+)$", re.M),
+    "task": re.compile(r"^[ \t]*Task: (\S+)", re.M),
+    "item": re.compile(r"^[ \t]*SWEEP ITEM (\d+)/(\d+)", re.M),
+    "round": re.compile(r"^[ \t]*Round: (\d+)", re.M),
 }
 TASK_ID_RE = re.compile(r"^(?P<lane>[a-z][a-z0-9_]*)-r\d{2,}-\d{2,}$")
 
 
 def first_prompt(transcript: str) -> str:
-    """Text of the first user message in a JSONL transcript."""
+    """Text of the user turns that open a JSONL transcript (everything before the agent's first reply)."""
+    parts = []
     with open(transcript) as f:
         for line in f:
             try:
@@ -41,13 +45,15 @@ def first_prompt(transcript: str) -> str:
                 continue
             msg = rec.get("message") or {}
             if rec.get("type") != "user" and msg.get("role") != "user":
+                if parts:
+                    break
                 continue
             content = msg.get("content")
             if isinstance(content, str):
-                return content
-            if isinstance(content, list):
-                return "\n".join(c.get("text", "") for c in content if isinstance(c, dict))
-    return ""
+                parts.append(content)
+            elif isinstance(content, list):
+                parts.append("\n".join(c.get("text", "") for c in content if isinstance(c, dict)))
+    return "\n".join(parts)
 
 
 def agent_transcript(data: dict) -> str | None:
