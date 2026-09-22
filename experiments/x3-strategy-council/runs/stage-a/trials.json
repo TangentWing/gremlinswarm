@@ -1,0 +1,646 @@
+{
+ "run": "x3-strategy-council/stage-a",
+ "target_profile": "bursty",
+ "trials": [
+  {
+   "id": "sonnet45/C0-S1-1",
+   "cell": "C0-S1",
+   "role": "judge",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C0-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "stall": 0,
+   "stallRounds": 2
+  },
+  {
+   "id": "sonnet45/C0-S1-2",
+   "cell": "C0-S1",
+   "role": "judge",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C0-S1-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "stall": 0,
+   "stallRounds": 2
+  },
+  {
+   "id": "sonnet45/C0-S1-3",
+   "cell": "C0-S1",
+   "role": "judge",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C0-S1-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "stall": 0,
+   "stallRounds": 2
+  },
+  {
+   "id": "opus5/C0-S1-1",
+   "cell": "C0-S1",
+   "role": "judge",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C0-S1-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 1,
+   "stall": 0,
+   "stallRounds": 2
+  },
+  {
+   "id": "sonnet45/C1-S1-1",
+   "cell": "C1-S1",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C1-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C1-S1-2",
+   "cell": "C1-S1",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C1-S1-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C1-S1-3",
+   "cell": "C1-S1",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C1-S1-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "opus5/C1-S1-1",
+   "cell": "C1-S1",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C1-S1-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C2-S1-focus-1",
+   "cell": "C2-S1-focus",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S1-focus-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "focus"
+  },
+  {
+   "id": "sonnet45/C2-S1-focus-2",
+   "cell": "C2-S1-focus",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S1-focus-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "focus"
+  },
+  {
+   "id": "sonnet45/C2-S1-focus-3",
+   "cell": "C2-S1-focus",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S1-focus-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "focus"
+  },
+  {
+   "id": "opus5/C2-S1-focus-1",
+   "cell": "C2-S1-focus",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C2-S1-focus-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 1,
+   "persona": "focus"
+  },
+  {
+   "id": "sonnet45/C2-S1-breadth-1",
+   "cell": "C2-S1-breadth",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S1-breadth-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "breadth"
+  },
+  {
+   "id": "sonnet45/C2-S1-breadth-2",
+   "cell": "C2-S1-breadth",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S1-breadth-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "breadth"
+  },
+  {
+   "id": "sonnet45/C2-S1-breadth-3",
+   "cell": "C2-S1-breadth",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S1-breadth-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "breadth"
+  },
+  {
+   "id": "opus5/C2-S1-breadth-1",
+   "cell": "C2-S1-breadth",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C2-S1-breadth-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 1,
+   "persona": "breadth"
+  },
+  {
+   "id": "sonnet45/C2-S1-sceptic-1",
+   "cell": "C2-S1-sceptic",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S1-sceptic-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C2-S1-sceptic-2",
+   "cell": "C2-S1-sceptic",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S1-sceptic-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C2-S1-sceptic-3",
+   "cell": "C2-S1-sceptic",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S1-sceptic-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "sceptic"
+  },
+  {
+   "id": "opus5/C2-S1-sceptic-1",
+   "cell": "C2-S1-sceptic",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C2-S1-sceptic-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 1,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C3-S1-static-1",
+   "cell": "C3-S1-static",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S1-static-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "lane": "static"
+  },
+  {
+   "id": "sonnet45/C3-S1-static-2",
+   "cell": "C3-S1-static",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S1-static-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "lane": "static"
+  },
+  {
+   "id": "sonnet45/C3-S1-static-3",
+   "cell": "C3-S1-static",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S1-static-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "lane": "static"
+  },
+  {
+   "id": "opus5/C3-S1-static-1",
+   "cell": "C3-S1-static",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C3-S1-static-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 1,
+   "lane": "static"
+  },
+  {
+   "id": "sonnet45/C3-S1-logs-1",
+   "cell": "C3-S1-logs",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S1-logs-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "lane": "logs"
+  },
+  {
+   "id": "sonnet45/C3-S1-logs-2",
+   "cell": "C3-S1-logs",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S1-logs-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "lane": "logs"
+  },
+  {
+   "id": "sonnet45/C3-S1-logs-3",
+   "cell": "C3-S1-logs",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S1-logs-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "lane": "logs"
+  },
+  {
+   "id": "opus5/C3-S1-logs-1",
+   "cell": "C3-S1-logs",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C3-S1-logs-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 1,
+   "lane": "logs"
+  },
+  {
+   "id": "sonnet45/C3-S1-ops-1",
+   "cell": "C3-S1-ops",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S1-ops-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "lane": "ops"
+  },
+  {
+   "id": "sonnet45/C3-S1-ops-2",
+   "cell": "C3-S1-ops",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S1-ops-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "lane": "ops"
+  },
+  {
+   "id": "sonnet45/C3-S1-ops-3",
+   "cell": "C3-S1-ops",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S1-ops-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "lane": "ops"
+  },
+  {
+   "id": "opus5/C3-S1-ops-1",
+   "cell": "C3-S1-ops",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C3-S1-ops-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 1,
+   "lane": "ops"
+  },
+  {
+   "id": "sonnet45/C0-S2-1",
+   "cell": "C0-S2",
+   "role": "judge",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C0-S2-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "stall": 0,
+   "stallRounds": 2
+  },
+  {
+   "id": "sonnet45/C0-S2-2",
+   "cell": "C0-S2",
+   "role": "judge",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C0-S2-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "stall": 0,
+   "stallRounds": 2
+  },
+  {
+   "id": "sonnet45/C0-S2-3",
+   "cell": "C0-S2",
+   "role": "judge",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C0-S2-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "stall": 0,
+   "stallRounds": 2
+  },
+  {
+   "id": "opus5/C0-S2-1",
+   "cell": "C0-S2",
+   "role": "judge",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C0-S2-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 2,
+   "stall": 0,
+   "stallRounds": 2
+  },
+  {
+   "id": "sonnet45/C1-S2-1",
+   "cell": "C1-S2",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C1-S2-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2
+  },
+  {
+   "id": "sonnet45/C1-S2-2",
+   "cell": "C1-S2",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C1-S2-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2
+  },
+  {
+   "id": "sonnet45/C1-S2-3",
+   "cell": "C1-S2",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C1-S2-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2
+  },
+  {
+   "id": "opus5/C1-S2-1",
+   "cell": "C1-S2",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C1-S2-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 2
+  },
+  {
+   "id": "sonnet45/C2-S2-focus-1",
+   "cell": "C2-S2-focus",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S2-focus-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "persona": "focus"
+  },
+  {
+   "id": "sonnet45/C2-S2-focus-2",
+   "cell": "C2-S2-focus",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S2-focus-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "persona": "focus"
+  },
+  {
+   "id": "sonnet45/C2-S2-focus-3",
+   "cell": "C2-S2-focus",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S2-focus-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "persona": "focus"
+  },
+  {
+   "id": "opus5/C2-S2-focus-1",
+   "cell": "C2-S2-focus",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C2-S2-focus-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 2,
+   "persona": "focus"
+  },
+  {
+   "id": "sonnet45/C2-S2-breadth-1",
+   "cell": "C2-S2-breadth",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S2-breadth-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "persona": "breadth"
+  },
+  {
+   "id": "sonnet45/C2-S2-breadth-2",
+   "cell": "C2-S2-breadth",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S2-breadth-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "persona": "breadth"
+  },
+  {
+   "id": "sonnet45/C2-S2-breadth-3",
+   "cell": "C2-S2-breadth",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S2-breadth-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "persona": "breadth"
+  },
+  {
+   "id": "opus5/C2-S2-breadth-1",
+   "cell": "C2-S2-breadth",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C2-S2-breadth-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 2,
+   "persona": "breadth"
+  },
+  {
+   "id": "sonnet45/C2-S2-sceptic-1",
+   "cell": "C2-S2-sceptic",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S2-sceptic-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C2-S2-sceptic-2",
+   "cell": "C2-S2-sceptic",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S2-sceptic-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C2-S2-sceptic-3",
+   "cell": "C2-S2-sceptic",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C2-S2-sceptic-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "persona": "sceptic"
+  },
+  {
+   "id": "opus5/C2-S2-sceptic-1",
+   "cell": "C2-S2-sceptic",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C2-S2-sceptic-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 2,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C3-S2-static-1",
+   "cell": "C3-S2-static",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S2-static-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "static"
+  },
+  {
+   "id": "sonnet45/C3-S2-static-2",
+   "cell": "C3-S2-static",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S2-static-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "static"
+  },
+  {
+   "id": "sonnet45/C3-S2-static-3",
+   "cell": "C3-S2-static",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S2-static-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "static"
+  },
+  {
+   "id": "opus5/C3-S2-static-1",
+   "cell": "C3-S2-static",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C3-S2-static-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 2,
+   "lane": "static"
+  },
+  {
+   "id": "sonnet45/C3-S2-logs-1",
+   "cell": "C3-S2-logs",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S2-logs-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs"
+  },
+  {
+   "id": "sonnet45/C3-S2-logs-2",
+   "cell": "C3-S2-logs",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S2-logs-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs"
+  },
+  {
+   "id": "sonnet45/C3-S2-logs-3",
+   "cell": "C3-S2-logs",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S2-logs-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs"
+  },
+  {
+   "id": "opus5/C3-S2-logs-1",
+   "cell": "C3-S2-logs",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C3-S2-logs-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 2,
+   "lane": "logs"
+  },
+  {
+   "id": "sonnet45/C3-S2-ops-1",
+   "cell": "C3-S2-ops",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S2-ops-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "ops"
+  },
+  {
+   "id": "sonnet45/C3-S2-ops-2",
+   "cell": "C3-S2-ops",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S2-ops-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "ops"
+  },
+  {
+   "id": "sonnet45/C3-S2-ops-3",
+   "cell": "C3-S2-ops",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/sonnet45/C3-S2-ops-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "ops"
+  },
+  {
+   "id": "opus5/C3-S2-ops-1",
+   "cell": "C3-S2-ops",
+   "role": "advocate",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-a/opus5/C3-S2-ops-1",
+   "model": "claude-opus-5",
+   "model_key": "opus5",
+   "round": 2,
+   "lane": "ops"
+  }
+ ]
+}

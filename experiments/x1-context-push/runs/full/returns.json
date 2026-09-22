@@ -1,0 +1,503 @@
+{
+ "results": [
+  {
+   "id": "sonnet45/A0-T-2",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end. Each request made 3 retry attempts with different idempotency keys (short_hash(\"{rid}:{attempt}\")), triggering 3 separate inventory reservations but only 1 confirmed order. Full trace data in trace.json showing request IDs and merged.log line numbers for all reserves.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "<repo>/investigations/_exp/x1-context-push/full/sonnet45/A0-T-2/lanes/logs/tasks/logs-r02-01/trace.json",
+     "<repo>/investigations/_exp/x1-context-push/full/sonnet45/A0-T-2/lanes/logs/tasks/logs-r02-01/trace_timeouts.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0-T-3",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests (r-0023, r-0065, r-0084, r-0087, r-0100) end-to-end in merged.log. Each shows multiple inventory reserves (2-5 per request) due to slow reserves (>2s) causing gateway timeouts, which trigger retries that generate NEW idempotency keys. Result: 2-3 reserves per confirmed order. See trace.json and finding B-logs-0003.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0d-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests; all show multiple inventory reserves (2-3 per request). Attribution: SKU/qty match + timing (reserve start = finish - took). See trace.json and B-logs-0003.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "<repo>/investigations/_exp/x1-context-push/full/sonnet45/A0d-T-1/lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0-T-4",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end to end. Each triggered 2-3 inventory reserves with distinct idempotency keys. Attribution: matched reserves by timing (start = complete - took), SKU, and quantity. Trace data shows retries generate new keys, causing duplicate reservations.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end. Each retry triggered a new inventory reserve before duplicate detection, causing over-reservation. Deliverable: trace.json with reserve line numbers; finding B-logs-0003 documents attribution method.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "opus5/A0-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Tied inventory reserves to requests exactly: key=sha1('<rid>:<attempt>')[:8] (gateway.py:22-24 + common.py:5-6); 573 pairs give 573 distinct hashes and all 235 key= values in merged.log resolve uniquely. trace.json traces all 33 timed-out rids: each has >1 `reserve ok` and no other rid does, 44 extra reserves totalling SKU-5 +43 / SKU-2 +2, exactly the final drift at merged.log:1208-1209; 0 `reserve replay` lines ever and the first double-reserve (10:06:12) precedes the first eviction (10:15:20), ruling out eviction. See B-logs-0003, B-shared-0003, B-logs-0004.",
+    "board_ids": [
+     "B-logs-0003",
+     "B-shared-0003",
+     "B-logs-0004",
+     "B-logs-0002"
+    ],
+    "artifacts": [
+     "<repo>/investigations/_exp/x1-context-push/full/opus5/A0-T-1/lanes/logs/tasks/logs-r02-01/trace.json",
+     "<repo>/investigations/_exp/x1-context-push/full/opus5/A0-T-1/lanes/logs/tasks/logs-r02-01/trace-meta.json",
+     "<repo>/investigations/_exp/x1-context-push/full/opus5/A0-T-1/lanes/logs/tasks/logs-r02-01/build_trace.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0d-T-2",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end. All reserved stock 2-3 times (12 total reserves) but confirmed only once each. Attribution: computed short_hash(rid:attempt) to match inventory reserves by key. See B-logs-0003 and trace.json.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced all 33 timed-out requests end to end. Attribution: computed idempotency keys (short_hash(rid:attempt)) and matched to inventory reserve lines. Result: every timed-out request reserved stock 2-3 times due to gateway retries using new keys per attempt.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json",
+     "lanes/logs/tasks/logs-r02-01/trace_requests.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1-T-2",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end to end. Attribution method: compute idempotency key as sha1(rid:attempt)[:8], match to inventory reserve lines. All 5 requests reserved stock multiple times (2-3 times each), once per retry attempt. Confirms B-shared-0001 hypothesis.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json",
+     "detailed_trace.json"
+    ]
+   }
+  },
+  {
+   "id": "opus5/A0d-T-1",
+   "result": {
+    "status": "done",
+    "summary": "All 33 requests that hit a gateway upstream timeout reserved stock 2-3 times (22 twice, 11 three times), and no request without a timeout ever reserved twice. The 44 extra `reserve ok` lines total SKU-5 +43 and SKU-2 +2 units, exactly the closing reconcile drift at merged.log:1208-1209. Inventory lines were tied to requests by inverting gateway.idem_key = sha1(f'{rid}:{attempt}')[:8] (services/gateway.py:24), resolving 406/406 key= lines with 0 unresolved; see B-logs-0003, B-shared-0002 and trace.json.",
+    "board_ids": [
+     "B-logs-0003",
+     "B-shared-0002"
+    ],
+    "artifacts": [
+     "<repo>/investigations/_exp/x1-context-push/full/opus5/A0d-T-1/lanes/logs/tasks/logs-r02-01/trace.json",
+     "<repo>/investigations/_exp/x1-context-push/full/opus5/A0d-T-1/lanes/logs/tasks/logs-r02-01/traces.txt",
+     "<repo>/investigations/_exp/x1-context-push/full/opus5/A0d-T-1/lanes/logs/tasks/logs-r02-01/attribute.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0d-T-4",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end to end. Each retry reserves stock again (new idem key per attempt); orders confirms once, leaving orphaned reservations. See trace.json and B-logs-0003.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0d-T-3",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end in merged.log. Each request reserved stock 7-13 times (one per retry attempt plus concurrent slow reserves). Attribution: correlated inventory reserves to orders place events by SKU+qty+timestamp. Confirms retry mechanism causes multiple reserves per request.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json",
+     "lanes/logs/tasks/logs-r02-01/trace_timeouts.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1-T-3",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end to end. All show 2-3 inventory reserve operations per request via different idempotency keys (computed as sha1(rid:attempt)[:8]). Gateway retries after timeout use new keys, causing double/triple reservations while orders successfully deduplicates. See B-logs-0003 for details.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A2-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 7 timed-out requests end to end by computing idempotency keys per attempt (sha1(rid:attempt)[:8]) and grepping merged.log for matching reserve operations. All 7 requests show 2-3 inventory reserves: retries use new keys, so inventory treats each attempt as distinct and reserves stock multiple times. Orders detects duplicates but inventory's reserves are never rolled back. Finding B-logs-0003; trace data in trace.json.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A2-T-2",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end in merged.log. Each request resulted in 2-3 reserve operations because gateway retries generate new idempotency keys while timed-out calls continue running. Attribution method: computed sha1(rid:attempt)[:8] keys and matched to inventory reserve lines.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "opus5/A1-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced all 33 timed-out requests end to end by resolving every inventory key= to a (rid, attempt) via sha1(f'{rid}:{attempt}')[:8] (gateway.py:22-24, common.py:5-6): all 406 inventory lines mapped, no collisions, none unmapped. Each timed-out request has 2-3 'reserve ok' lines while all 158 non-timed-out ones have exactly 1, and the excess units total exactly the reported drift (SKU-5 +43, SKU-2 +2 at merged.log:1208-1209). Eviction is ruled out: zero 'reserve replay' lines, first drift 10:10:00 precedes first evict 10:15:20, and no evict of a rid's own key precedes its duplicate reserve.",
+    "board_ids": [
+     "B-logs-0003",
+     "B-logs-0004",
+     "B-logs-0005",
+     "B-shared-0002",
+     "B-shared-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json",
+     "lanes/logs/tasks/logs-r02-01/traces.md",
+     "lanes/logs/tasks/logs-r02-01/trace.py",
+     "lanes/logs/tasks/logs-r02-01/acct.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A2-T-3",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end to end. Each retry generates a new idempotency key (sha1(rid:attempt)[:8]), causing inventory to reserve stock multiple times per request. Confirmed B-shared-0001 with log evidence.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0-H-3",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end. Each triggered 7-13 inventory reservations due to gateway retries. Attribution via SKU+qty+timing match to place calls. Evidence: trace.json maps request IDs to merged.log line numbers of all reserve operations.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json",
+     "trace_timeouts.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0-H-2",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests (r-0065, r-0084, r-0100, r-0114, r-0127) end-to-end in merged.log. Each request reserves stock 3 times (once per retry attempt) because gateway generates different idempotency keys for each attempt (short_hash(rid:attempt)). Attribution method: computed expected keys from rid:attempt and matched them to inventory reserve operations. Deliverables: trace.json with line numbers, finding B-logs-0003, attribution_method.md documenting the linking method.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "<repo>/investigations/_exp/x1-context-push/full/sonnet45/A0-H-2/lanes/logs/tasks/logs-r02-01/trace.json",
+     "<repo>/investigations/_exp/x1-context-push/full/sonnet45/A0-H-2/lanes/logs/tasks/logs-r02-01/attribution_method.md"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A2-T-4",
+   "result": {
+    "status": "done",
+    "summary": "Traced 8 timed-out requests end to end using computed idempotency keys (sha1(rid:attempt)[:8]). All 8 show multiple inventory reserves (2-3 per request), confirming that retries with new keys cause double/triple reservation. Finding posted as B-logs-0003.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests (r-0023, r-0061, r-0074, r-0084, r-0087) end-to-end in merged.log. All show multiple inventory reservations: 2-3 reserve ok lines per request, one per retry attempt. Attribution: gateway.idem_key(rid, attempt) generates different keys per retry, bypassing inventory idempotency. First attempt slow (>2000ms), causes timeout; retry succeeds with new key. Result: multiple reservations, single confirmed order.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "opus5/A2-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced all 33 timed-out requests end to end: inventory lines were tied to a rid by recomputing sha1('<rid>:<attempt>')[:8], which accounted for 235/235 reserve-ok and 171/171 evict lines with none left over. Each timed-out request is reserved once per gateway attempt under a different key while orders' rid dedupe fires only after the reserve (44 extra reserves = 44 retries = 44 'duplicate request ignored'), and the extra units match the reconcile drift exactly (SKU-5 +43, SKU-2 +2). See B-logs-0003, B-shared-0002, B-logs-0004 and trace.json.",
+    "board_ids": [
+     "B-logs-0003",
+     "B-shared-0002",
+     "B-logs-0004"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json",
+     "lanes/logs/tasks/logs-r02-01/full-trace.json",
+     "lanes/logs/tasks/logs-r02-01/attribute.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1-T-4",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end. Attribution: idempotency key sha1(rid:attempt)[:8] matches inventory key= field. Found multiple inventory reservations per request (r-0065: 3 reserves, r-0084: 3 reserves). Mechanism confirmed: gateway retries with new key but does not cancel timed-out calls.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0-H-4",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end to end. All show multiple inventory reservations (2-3 per request). Attribution: matched computed idempotency keys (short_hash(rid:attempt)) to inventory log lines. See trace.json for line numbers and B-logs-0003 for detailed findings.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json",
+     "trace_requests.py"
+    ]
+   }
+  },
+  {
+   "id": "opus5/A0-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Tied inventory lines to requests via key=sha1(f'{rid}:{attempt}')[:8] (gateway.py:24 + common.py:6), validated by attributing 235/235 reserve-ok lines with none left over, and traced all 33 timed-out rids in trace.json. Each reserved 2-3 times (44 extra reserves = the 44 retry lines): every attempt mints a new key, so inventory's replay branch never fires (0 replay lines) and orders' rid dedup runs after the reserve. Eviction ruled out: first double reserve (:120-121) and first drift (:173) precede the first evict (:271); extras match the final drift +43/+2 (:1208-1209).",
+    "board_ids": [
+     "B-logs-0003",
+     "B-logs-0004",
+     "B-shared-0002"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json",
+     "lanes/logs/tasks/logs-r02-01/trace-meta.json",
+     "lanes/logs/tasks/logs-r02-01/build_trace.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1-H-3",
+   "result": {
+    "status": "done",
+    "summary": "Traced 10 timed-out requests end-to-end by computing their idempotency keys from gateway.py logic (key = SHA1[:8] of \"{rid}:{attempt}\"). All 10 requests show exactly 2 inventory reserves: one for each retry attempt with different keys. Orders service deduplicates by rid, preventing duplicate order records, but inventory reserves stock for each unique key, causing the reserved > confirmed drift. Full traces in trace.json.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json",
+     "lanes/logs/tasks/logs-r02-01/trace_requests.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end. Each gateway retry triggers a new inventory reserve. Attribution by SKU+qty match and temporal correlation using 'took' field. r-0084 and r-0065 had 3 reserves each; others had 2. Confirms idempotency-cache eviction allows double/triple reservation.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1-H-2",
+   "result": {
+    "status": "done",
+    "summary": "All 33 timed-out requests were double-reserved. Gateway uses different idempotency keys per retry (short_hash(rid:attempt)), bypassing inventory's cache. Root cause is key-generation strategy at services/gateway.py:22-24, not cache eviction.",
+    "board_ids": [
+     "B-logs-0003",
+     "B-shared-0002",
+     "B-shared-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json",
+     "lanes/logs/tasks/logs-r02-01/trace_requests.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1-H-4",
+   "result": {
+    "status": "done",
+    "summary": "Traced 15 timed-out requests end-to-end; all had 2-3 inventory reserves due to per-attempt idempotency keys. Gateway generates new keys for each retry (hash(rid:attempt)), defeating idempotency protection. Orders service checks for duplicates AFTER calling inventory.reserve, so stock is reserved once per attempt. Finding posted as B-logs-0003 with trace.json artifact containing reserve line numbers for each request.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "<repo>/investigations/_exp/x1-context-push/full/sonnet45/A1-H-4/lanes/logs/tasks/logs-r02-01/trace.json",
+     "<repo>/investigations/_exp/x1-context-push/full/sonnet45/A1-H-4/lanes/logs/tasks/logs-r02-01/trace_detailed.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A2-H-2",
+   "result": {
+    "status": "done",
+    "summary": "Traced 10 timed-out requests end-to-end using idempotency-key attribution (sha1(rid:attempt)[:8]); all 10 have 2-3 inventory reserves, confirming the hypothesis that timeout+retry+eviction leads to double reservations. Artifact trace.json lists line numbers.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A2-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests; all reserved stock 2-3 times as slow inventory calls completed after gateway retry. Method: computed idempotency keys via sha1 per KB page, searched merged.log for reserve lines.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A2-H-3",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end in merged.log. All 5 had multiple inventory reserves (2-3x each). Attribution via idempotency key computation (sha1 per KB). Root cause: gateway timeout doesn't cancel in-flight inventory calls, so retries create duplicate reserves with different idem keys while original slow call is still running. Full trace in trace.json.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A2-H-4",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end; all show 2-3 inventory reservations per request. Attribution via sha1(rid:attempt)[:8] idempotency keys. Mechanism confirmed: gateway timeout + retry with new key \u2192 inventory reserves multiple times while orders deduplicates by rid.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "opus5/A2-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced all 33 timed-out requests end to end: every one reserved stock 2-3 times (44 duplicate 'reserve ok' lines), each under a different key because gateway.py:24 hashes f'{rid}:{attempt}' - inventory lines were attributed by inverting that hash (0 collisions, 0 unattributable keys over 235). Those duplicates account for 100% of the drift at all 7 reconcile checkpoints (SKU-5 +43, SKU-2 +2), and the eviction hypothesis is ruled out: 0 'reserve replay' lines and min eviction age 402s vs retries within 4.6s. See B-logs-0003, B-shared-0002, B-shared-0003, B-shared-0004.",
+    "board_ids": [
+     "B-logs-0003",
+     "B-shared-0002",
+     "B-shared-0003",
+     "B-shared-0004"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json",
+     "lanes/logs/tasks/logs-r02-01/traces.txt",
+     "lanes/logs/tasks/logs-r02-01/trace-summary.json",
+     "lanes/logs/tasks/logs-r02-01/drift-accounting.md",
+     "lanes/logs/tasks/logs-r02-01/trace.py"
+    ]
+   }
+  },
+  {
+   "id": "opus5/A1-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced all 33 timed-out requests end to end: each was reserved in inventory once per gateway attempt (22 rids x2, 11 x3 = 44 extra reserve calls, 45 extra units) while orders confirmed each order once. Inventory lines were tied to requests by matching (sku,qty) plus reserve_start = timestamp - took to each 'place' line \u2014 a 1:1 assignment over 235/235 lines, residuals 0.002-0.348s, totals reproducing the 10:40 drift exactly (SKU-5 +43, SKU-2 +2). Every retry used a new idem key and duplicates are <=7s apart, so eviction cannot explain them (B-logs-0003, B-shared-0002).",
+    "board_ids": [
+     "B-logs-0003",
+     "B-shared-0002"
+    ],
+    "artifacts": [
+     "<repo>/investigations/_exp/x1-context-push/full/opus5/A1-H-1/lanes/logs/tasks/logs-r02-01/trace.json",
+     "<repo>/investigations/_exp/x1-context-push/full/opus5/A1-H-1/lanes/logs/tasks/logs-r02-01/attrib.py"
+    ]
+   }
+  }
+ ]
+}

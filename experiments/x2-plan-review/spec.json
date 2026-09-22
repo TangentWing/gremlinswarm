@@ -1,0 +1,293 @@
+{
+ "experiment": "x2-plan-review",
+ "question": "How should a strategist's position reach a lane planner \u2014 detailed orders, or intent that leaves the experiment to the lane \u2014 and does a sceptic step at the planner help? Separately: what does a no-agent lint catch?",
+ "why": "DESIGN_SPACE axis B, after x3 decided the strategist (C1s). The user's hypothesis: the top never has the full picture, so intent should travel down and lanes should keep latitude (mission orders). x3 showed partial views anchor (lane advocates); this tests latitude at the planner, not devolved strategy.",
+ "target": "trisvc, profile bursty",
+ "target_profile": "bursty",
+ "lint": {
+  "tool": "harness/lint.py",
+  "validated_on": "stockd-before round 1 (long task holding the exclusive port while another lane queued for it), stockd round 1 (4 tasks fanning in on the port); no findings on 4 other real rounds after excluding read-only inputs and earlier tasks' artifacts"
+ },
+ "states": {
+  "S1": "x3 S1 (red-herring board, end of round 1); the planner plans round 2",
+  "S0": "x3 S0 (true-lead board); control: does intent form degrade a plan when the board is right?"
+ },
+ "positions": "the sceptic strategist's stage-b1 positions (x3, C1s-S1-i / C1s-S0-i), one per trial index \u2014 the planner in trial i gets strategist i's position",
+ "arms": {
+  "P0": {
+   "what": "v1 planner: scope brief + judge gaps only (judge gaps in the scope brief, as in v1)"
+  },
+  "P1": {
+   "what": "detailed orders: the strategist's directive items for this lane verbatim (experiment, separates, predictions); may decline with a reason",
+   "edits": {
+    "lanes/{lane}/scope/round-{plan_round}.md": [
+     [
+      "^- judge gaps: .*$",
+      "- judge gaps: carried by the strategist's position (below your role instructions); the judge's raw gap list is not repeated here"
+     ]
+    ]
+   }
+  },
+  "P2": {
+   "what": "intent only: hypotheses with statuses and reasons, what the round must settle (the discriminating observations), not-pursuing; no experiments, no lane assignment",
+   "edits": {
+    "lanes/{lane}/scope/round-{plan_round}.md": [
+     [
+      "^- judge gaps: .*$",
+      "- judge gaps: carried by the strategist's position (below your role instructions); the judge's raw gap list is not repeated here"
+     ]
+    ]
+   }
+  },
+  "P3": {
+   "what": "intent + a sceptic step in the planner",
+   "overlay": {
+    "prompts/plan.md": "\n## Before you plan (added)\n\nAssume the leading hypothesis is wrong. Write two lines in the plan notes: what on the boards contradicts it or does not fit it, and what it predicted that has not been observed. Then make sure at least one task would show the leading hypothesis to be wrong if it is.\n"
+   },
+   "edits": {
+    "lanes/{lane}/scope/round-{plan_round}.md": [
+     [
+      "^- judge gaps: .*$",
+      "- judge gaps: carried by the strategist's position (below your role instructions); the judge's raw gap list is not repeated here"
+     ]
+    ]
+   }
+  }
+ },
+ "models": {
+  "sonnet45": "claude-sonnet-4-5"
+ },
+ "norm_model": "sonnet45",
+ "k": {
+  "pilot": {
+   "sonnet45": 1
+  },
+  "full": {
+   "sonnet45": 3
+  }
+ },
+ "cells": [
+  {
+   "id": "P0-logs-S1",
+   "role": "plan",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "P0",
+   "params": {
+    "lane": "logs"
+   }
+  },
+  {
+   "id": "P1-logs-S1",
+   "role": "plan",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "P1",
+   "params": {
+    "lane": "logs"
+   },
+   "inputs": {
+    "prompts/plan.md": {
+     "from_run": "x3:stage-b1",
+     "ids": [
+      "{model}/C1s-S1-{i}"
+     ],
+     "render": "detailed",
+     "append": true
+    }
+   }
+  },
+  {
+   "id": "P2-logs-S1",
+   "role": "plan",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "P2",
+   "params": {
+    "lane": "logs"
+   },
+   "inputs": {
+    "prompts/plan.md": {
+     "from_run": "x3:stage-b1",
+     "ids": [
+      "{model}/C1s-S1-{i}"
+     ],
+     "render": "intent",
+     "append": true
+    }
+   }
+  },
+  {
+   "id": "P3-logs-S1",
+   "role": "plan",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "P3",
+   "params": {
+    "lane": "logs"
+   },
+   "inputs": {
+    "prompts/plan.md": {
+     "from_run": "x3:stage-b1",
+     "ids": [
+      "{model}/C1s-S1-{i}"
+     ],
+     "render": "intent",
+     "append": true
+    }
+   }
+  },
+  {
+   "id": "P0-static-S1",
+   "role": "plan",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "P0",
+   "params": {
+    "lane": "static"
+   }
+  },
+  {
+   "id": "P1-static-S1",
+   "role": "plan",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "P1",
+   "params": {
+    "lane": "static"
+   },
+   "inputs": {
+    "prompts/plan.md": {
+     "from_run": "x3:stage-b1",
+     "ids": [
+      "{model}/C1s-S1-{i}"
+     ],
+     "render": "detailed",
+     "append": true
+    }
+   }
+  },
+  {
+   "id": "P2-static-S1",
+   "role": "plan",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "P2",
+   "params": {
+    "lane": "static"
+   },
+   "inputs": {
+    "prompts/plan.md": {
+     "from_run": "x3:stage-b1",
+     "ids": [
+      "{model}/C1s-S1-{i}"
+     ],
+     "render": "intent",
+     "append": true
+    }
+   }
+  },
+  {
+   "id": "P3-static-S1",
+   "role": "plan",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "P3",
+   "params": {
+    "lane": "static"
+   },
+   "inputs": {
+    "prompts/plan.md": {
+     "from_run": "x3:stage-b1",
+     "ids": [
+      "{model}/C1s-S1-{i}"
+     ],
+     "render": "intent",
+     "append": true
+    }
+   }
+  },
+  {
+   "id": "P0-logs-S0",
+   "role": "plan",
+   "state": "strategy",
+   "variant": "S0",
+   "arm": "P0",
+   "params": {
+    "lane": "logs"
+   }
+  },
+  {
+   "id": "P1-logs-S0",
+   "role": "plan",
+   "state": "strategy",
+   "variant": "S0",
+   "arm": "P1",
+   "params": {
+    "lane": "logs"
+   },
+   "inputs": {
+    "prompts/plan.md": {
+     "from_run": "x3:stage-b1",
+     "ids": [
+      "{model}/C1s-S0-{i}"
+     ],
+     "render": "detailed",
+     "append": true
+    }
+   }
+  },
+  {
+   "id": "P2-logs-S0",
+   "role": "plan",
+   "state": "strategy",
+   "variant": "S0",
+   "arm": "P2",
+   "params": {
+    "lane": "logs"
+   },
+   "inputs": {
+    "prompts/plan.md": {
+     "from_run": "x3:stage-b1",
+     "ids": [
+      "{model}/C1s-S0-{i}"
+     ],
+     "render": "intent",
+     "append": true
+    }
+   }
+  },
+  {
+   "id": "P3-logs-S0",
+   "role": "plan",
+   "state": "strategy",
+   "variant": "S0",
+   "arm": "P3",
+   "params": {
+    "lane": "logs"
+   },
+   "inputs": {
+    "prompts/plan.md": {
+     "from_run": "x3:stage-b1",
+     "ids": [
+      "{model}/C1s-S0-{i}"
+     ],
+     "render": "intent",
+     "append": true
+    }
+   }
+  }
+ ],
+ "metrics": {
+  "key_trace": "a queued task attributes inventory lines to requests through the key derivation (sha1(rid:attempt) / short_hash / idem_key / B-static-0002) \u2014 the step that unblocks the criteria",
+  "eviction_hunt": "a queued task looks for evicted keys being reserved again (the wasted task of x3's S2 state)",
+  "follows_note": "(static lane) a task follows up the un-promoted key-derivation note / the retry loop rather than deepening eviction",
+  "cites_ids": "task instructions cite board ids (context attached by the planner)",
+  "n_tasks / verify": "how much work, at what verify level",
+  "lint": "findings of harness/lint.py on the saved plan (with the directive for P1)",
+  "sceptic_note": "(P3) the plan notes contain the two required lines",
+  "method": "how the trace task tells its worker to tie inventory lines to requests: exact (sha1(rid:attempt) / B-static-0002 named), pointer (read gateway.py for the key logic), none (guess by sku/timestamp) \u2014 x1 showed the guess fails on this log"
+ },
+ "decision_rule": "Adopt intent (P2) over detailed orders (P1) if it matches P1 on key_trace and eviction_hunt on S1 and does not degrade on S0 \u2014 latitude at no cost. Adopt P3 over P2 only if it raises key_trace or lowers eviction_hunt on S1 by more than one trial per cell without hurting S0. If P1 beats P2 on S1 by more than one trial per cell, orders win: the planner does not convert intent into the right experiment on this model, and the strategist keeps naming experiments.",
+ "calibration": "pilot k=1 (contaminated: the harness relayed the user's message about the design to every agent; calibration only): every arm planned a trace, because the judge gap says so; the arms differ in the method given to the worker (P0: guess by sku/timestamp; P1: read gateway.py; P2/P3: the derivation) and in whether the eviction hunt is queued. Intent arms still queued the hunt because the judge gap remained in their scope brief; strategist arms now get the gaps line replaced (the strategist's position carries direction)."
+}

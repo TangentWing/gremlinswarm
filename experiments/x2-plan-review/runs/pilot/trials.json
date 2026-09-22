@@ -1,0 +1,138 @@
+{
+ "run": "x2-plan-review/pilot",
+ "target_profile": "bursty",
+ "trials": [
+  {
+   "id": "sonnet45/P0-logs-S1-1",
+   "cell": "P0-logs-S1",
+   "role": "plan",
+   "inv": "<repo>/investigations/_exp/x2-plan-review/pilot/sonnet45/P0-logs-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "max_tasks": 2
+  },
+  {
+   "id": "sonnet45/P1-logs-S1-1",
+   "cell": "P1-logs-S1",
+   "role": "plan",
+   "inv": "<repo>/investigations/_exp/x2-plan-review/pilot/sonnet45/P1-logs-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "max_tasks": 2
+  },
+  {
+   "id": "sonnet45/P2-logs-S1-1",
+   "cell": "P2-logs-S1",
+   "role": "plan",
+   "inv": "<repo>/investigations/_exp/x2-plan-review/pilot/sonnet45/P2-logs-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "max_tasks": 2
+  },
+  {
+   "id": "sonnet45/P3-logs-S1-1",
+   "cell": "P3-logs-S1",
+   "role": "plan",
+   "inv": "<repo>/investigations/_exp/x2-plan-review/pilot/sonnet45/P3-logs-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "max_tasks": 2
+  },
+  {
+   "id": "sonnet45/P0-static-S1-1",
+   "cell": "P0-static-S1",
+   "role": "plan",
+   "inv": "<repo>/investigations/_exp/x2-plan-review/pilot/sonnet45/P0-static-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "static",
+   "max_tasks": 2
+  },
+  {
+   "id": "sonnet45/P1-static-S1-1",
+   "cell": "P1-static-S1",
+   "role": "plan",
+   "inv": "<repo>/investigations/_exp/x2-plan-review/pilot/sonnet45/P1-static-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "static",
+   "max_tasks": 2
+  },
+  {
+   "id": "sonnet45/P2-static-S1-1",
+   "cell": "P2-static-S1",
+   "role": "plan",
+   "inv": "<repo>/investigations/_exp/x2-plan-review/pilot/sonnet45/P2-static-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "static",
+   "max_tasks": 2
+  },
+  {
+   "id": "sonnet45/P3-static-S1-1",
+   "cell": "P3-static-S1",
+   "role": "plan",
+   "inv": "<repo>/investigations/_exp/x2-plan-review/pilot/sonnet45/P3-static-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "static",
+   "max_tasks": 2
+  },
+  {
+   "id": "sonnet45/P0-logs-S0-1",
+   "cell": "P0-logs-S0",
+   "role": "plan",
+   "inv": "<repo>/investigations/_exp/x2-plan-review/pilot/sonnet45/P0-logs-S0-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "max_tasks": 2
+  },
+  {
+   "id": "sonnet45/P1-logs-S0-1",
+   "cell": "P1-logs-S0",
+   "role": "plan",
+   "inv": "<repo>/investigations/_exp/x2-plan-review/pilot/sonnet45/P1-logs-S0-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "max_tasks": 2
+  },
+  {
+   "id": "sonnet45/P2-logs-S0-1",
+   "cell": "P2-logs-S0",
+   "role": "plan",
+   "inv": "<repo>/investigations/_exp/x2-plan-review/pilot/sonnet45/P2-logs-S0-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "max_tasks": 2
+  },
+  {
+   "id": "sonnet45/P3-logs-S0-1",
+   "cell": "P3-logs-S0",
+   "role": "plan",
+   "inv": "<repo>/investigations/_exp/x2-plan-review/pilot/sonnet45/P3-logs-S0-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "max_tasks": 2
+  }
+ ]
+}

@@ -1,0 +1,300 @@
+{
+ "run": "x3-strategy-council/stage-b1",
+ "target_profile": "bursty",
+ "trials": [
+  {
+   "id": "sonnet45/C1-S1-1",
+   "cell": "C1-S1",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C1-S1-2",
+   "cell": "C1-S1",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1-S1-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C1-S1-3",
+   "cell": "C1-S1",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1-S1-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C1-S2-1",
+   "cell": "C1-S2",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1-S2-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2
+  },
+  {
+   "id": "sonnet45/C1-S2-2",
+   "cell": "C1-S2",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1-S2-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2
+  },
+  {
+   "id": "sonnet45/C1-S2-3",
+   "cell": "C1-S2",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1-S2-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2
+  },
+  {
+   "id": "sonnet45/C0-S0-1",
+   "cell": "C0-S0",
+   "role": "judge",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C0-S0-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "stall": 0,
+   "stallRounds": 2
+  },
+  {
+   "id": "sonnet45/C0-S0-2",
+   "cell": "C0-S0",
+   "role": "judge",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C0-S0-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "stall": 0,
+   "stallRounds": 2
+  },
+  {
+   "id": "sonnet45/C0-S0-3",
+   "cell": "C0-S0",
+   "role": "judge",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C0-S0-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "stall": 0,
+   "stallRounds": 2
+  },
+  {
+   "id": "sonnet45/C1-S0-1",
+   "cell": "C1-S0",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1-S0-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C1-S0-2",
+   "cell": "C1-S0",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1-S0-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C1-S0-3",
+   "cell": "C1-S0",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1-S0-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C1s-S0-1",
+   "cell": "C1s-S0",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1s-S0-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C1s-S0-2",
+   "cell": "C1s-S0",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1s-S0-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C1s-S0-3",
+   "cell": "C1s-S0",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1s-S0-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C1s-S1-1",
+   "cell": "C1s-S1",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1s-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C1s-S1-2",
+   "cell": "C1s-S1",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1s-S1-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C1s-S1-3",
+   "cell": "C1s-S1",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1s-S1-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C1s-S2-1",
+   "cell": "C1s-S2",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1s-S2-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C1s-S2-2",
+   "cell": "C1s-S2",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1s-S2-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C1s-S2-3",
+   "cell": "C1s-S2",
+   "role": "strategist",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C1s-S2-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C2-S0-focus-1",
+   "cell": "C2-S0-focus",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C2-S0-focus-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "focus"
+  },
+  {
+   "id": "sonnet45/C2-S0-focus-2",
+   "cell": "C2-S0-focus",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C2-S0-focus-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "focus"
+  },
+  {
+   "id": "sonnet45/C2-S0-focus-3",
+   "cell": "C2-S0-focus",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C2-S0-focus-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "focus"
+  },
+  {
+   "id": "sonnet45/C2-S0-breadth-1",
+   "cell": "C2-S0-breadth",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C2-S0-breadth-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "breadth"
+  },
+  {
+   "id": "sonnet45/C2-S0-breadth-2",
+   "cell": "C2-S0-breadth",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C2-S0-breadth-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "breadth"
+  },
+  {
+   "id": "sonnet45/C2-S0-breadth-3",
+   "cell": "C2-S0-breadth",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C2-S0-breadth-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "breadth"
+  },
+  {
+   "id": "sonnet45/C2-S0-sceptic-1",
+   "cell": "C2-S0-sceptic",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C2-S0-sceptic-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C2-S0-sceptic-2",
+   "cell": "C2-S0-sceptic",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C2-S0-sceptic-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "sceptic"
+  },
+  {
+   "id": "sonnet45/C2-S0-sceptic-3",
+   "cell": "C2-S0-sceptic",
+   "role": "member",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b1/sonnet45/C2-S0-sceptic-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "persona": "sceptic"
+  }
+ ]
+}

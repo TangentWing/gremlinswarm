@@ -1,0 +1,24 @@
+{
+ "results": [
+  {
+   "id": "sonnet45/ju-J2-1",
+   "result": {
+    "met": true,
+    "progress": true,
+    "gaps": [],
+    "summary": "All success criteria met. Root cause confirmed at services/gateway.py:24: retries use new idempotency keys (sha1('<rid>:<attempt>')[:8]), causing double-reservation when timed-out calls complete. Six affected requests (r-0035, r-0039, r-0053, r-0058, r-0061, r-0063) traced end-to-end with full merged.log line numbers (B-logs-0001, trace table). Both rival explanations ruled out (B-shared-0003, B-shared-0004)."
+   }
+  },
+  {
+   "id": "sonnet45/ch-F2-1",
+   "result": {
+    "objections": [
+     "trace_table.md shows only 1 request; deliverable requires at least 5 timed-out rids with full trace details",
+     "Board entry claims 'all 15' confirmed but only r-0035 is traced; per lane evidence standard, a claim about N cases must list the N request ids"
+    ],
+    "summary": "The artifact shows only 1 traced request (r-0035) when the deliverable explicitly requires at least 5. The methodology is sound (verified the sha1 key attribution and merged.log line numbers), but the work stopped short after one example.",
+    "verdict": "redo"
+   }
+  }
+ ]
+}

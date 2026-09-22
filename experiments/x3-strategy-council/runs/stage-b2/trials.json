@@ -1,0 +1,87 @@
+{
+ "run": "x3-strategy-council/stage-b2",
+ "target_profile": "bursty",
+ "trials": [
+  {
+   "id": "sonnet45/C2c-S1-1",
+   "cell": "C2c-S1",
+   "role": "chair",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b2/sonnet45/C2c-S1-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C2c-S1-2",
+   "cell": "C2c-S1",
+   "role": "chair",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b2/sonnet45/C2c-S1-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C2c-S1-3",
+   "cell": "C2c-S1",
+   "role": "chair",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b2/sonnet45/C2c-S1-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C2c-S2-1",
+   "cell": "C2c-S2",
+   "role": "chair",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b2/sonnet45/C2c-S2-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2
+  },
+  {
+   "id": "sonnet45/C2c-S2-2",
+   "cell": "C2c-S2",
+   "role": "chair",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b2/sonnet45/C2c-S2-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2
+  },
+  {
+   "id": "sonnet45/C2c-S2-3",
+   "cell": "C2c-S2",
+   "role": "chair",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b2/sonnet45/C2c-S2-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2
+  },
+  {
+   "id": "sonnet45/C2c-S0-1",
+   "cell": "C2c-S0",
+   "role": "chair",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b2/sonnet45/C2c-S0-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C2c-S0-2",
+   "cell": "C2c-S0",
+   "role": "chair",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b2/sonnet45/C2c-S0-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  },
+  {
+   "id": "sonnet45/C2c-S0-3",
+   "cell": "C2c-S0",
+   "role": "chair",
+   "inv": "<repo>/investigations/_exp/x3-strategy-council/stage-b2/sonnet45/C2c-S0-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1
+  }
+ ]
+}

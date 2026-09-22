@@ -1,0 +1,157 @@
+{
+ "experiment": "x1-context-push",
+ "question": "For an investigator working on the merged log: does context pushed into its brief get used and help, compared with v1's pull-only brief? Does an explainer knowledge-base page help further? Does pushing the leading hypothesis anchor the worker when that hypothesis is wrong?",
+ "why": "In v1 runs 36% of investigators never queried the board and none ever asked a question; the investigator is the only role whose brief carries no state (DESIGN_V2 \u00a72). The trisvc log cannot be joined across services without a fact that lives in gateway.py.",
+ "target": "trisvc, profile bursty",
+ "task": "logs-r02-01: trace >= 5 timed-out requests end to end and deliver trace.json [{rid, reserve_lines}]. The task text does not contain the key derivation.",
+ "models": {
+  "sonnet45": "claude-sonnet-4-5",
+  "opus5": "claude-opus-5"
+ },
+ "norm_model": "sonnet45",
+ "k": {
+  "pilot-base": {
+   "sonnet45": 1
+  },
+  "pilot2": {
+   "sonnet45": 1
+  },
+  "full": {
+   "sonnet45": 4,
+   "opus5": 1
+  },
+  "followup": {
+   "sonnet45": 4
+  }
+ },
+ "states": {
+  "T": "the board's leading entry is the true lead (key = sha1(rid:attempt)[:8]), promoted to shared and in the synthesis",
+  "T-deps": "as T, and the task declares deps=[static-r01-01] \u2014 v1's existing way to pass context (the protocol tells an investigator to `task show` its deps)",
+  "H": "the shared board and synthesis lead with the eviction red herring; the true lead is an un-promoted low-confidence note on the static lane board, reachable only by query or by reading gateway.py"
+ },
+ "arms": {
+  "push": {
+   "applies_to": "investigator",
+   "append_files": {
+    "prompts/investigator.md": [
+     "_arms/push.md"
+    ]
+   },
+   "what": "the synthesis and the two board entries a planner would attach (the leading entry and the logs timeline), printed by `brief` with the role prompt"
+  },
+  "push-kb": {
+   "applies_to": "investigator",
+   "append_files": {
+    "prompts/investigator.md": [
+     "_arms/push.md",
+     "_arms/kb.md"
+    ]
+   },
+   "copy_files": {
+    "kb/idempotency-key.md": "_arms/kb-file.md"
+   },
+   "what": "push, plus the explainer page on how a request is tied to its inventory lines"
+  },
+  "facts-kb": {
+   "applies_to": "investigator",
+   "append_files": {
+    "prompts/investigator.md": [
+     "_arms/facts.md",
+     "_arms/kb.md"
+    ]
+   },
+   "copy_files": {
+    "kb/idempotency-key.md": "_arms/kb-file.md"
+   },
+   "what": "established entries (findings, evidence) in full, open questions, the KB page; hypotheses only by id, marked as under test. No synthesis narrative."
+  },
+  "push-labelled": {
+   "applies_to": "investigator",
+   "append_files": {
+    "prompts/investigator.md": [
+     "_arms/push-labelled.md"
+    ]
+   },
+   "what": "as push, plus one sentence: hypotheses are not established; say whether your evidence supports or contradicts them"
+  }
+ },
+ "cells": [
+  {
+   "id": "A0-T",
+   "role": "investigator",
+   "state": "work",
+   "variant": "T"
+  },
+  {
+   "id": "A0d-T",
+   "role": "investigator",
+   "state": "work",
+   "variant": "T-deps"
+  },
+  {
+   "id": "A1-T",
+   "role": "investigator",
+   "state": "work",
+   "variant": "T",
+   "arm": "push"
+  },
+  {
+   "id": "A2-T",
+   "role": "investigator",
+   "state": "work",
+   "variant": "T",
+   "arm": "push-kb"
+  },
+  {
+   "id": "A0-H",
+   "role": "investigator",
+   "state": "work",
+   "variant": "H"
+  },
+  {
+   "id": "A1-H",
+   "role": "investigator",
+   "state": "work",
+   "variant": "H",
+   "arm": "push"
+  },
+  {
+   "id": "A2-H",
+   "role": "investigator",
+   "state": "work",
+   "variant": "H",
+   "arm": "push-kb"
+  },
+  {
+   "id": "A3-T",
+   "role": "investigator",
+   "state": "work",
+   "variant": "T",
+   "arm": "facts-kb"
+  },
+  {
+   "id": "A3-H",
+   "role": "investigator",
+   "state": "work",
+   "variant": "H",
+   "arm": "facts-kb"
+  },
+  {
+   "id": "A1L-H",
+   "role": "investigator",
+   "state": "work",
+   "variant": "H",
+   "arm": "push-labelled"
+  }
+ ],
+ "metrics": {
+  "success": "trace.json has >= 5 rows whose reserve_lines equal the answer key's set for that rid, and no wrong rows",
+  "rows_correct / rows": "partial credit",
+  "asserts_eviction": "the agent's own entries or summary present eviction as the cause (spot-read; regex is crude)",
+  "route": "how it got the join: queried the board, ran `task show` on a dep, read gateway.py itself, or had it pushed",
+  "cost": "tool calls, output tokens, fresh input tokens; status returned; tool calls against the 45-turn cap"
+ },
+ "decision_rule": "Adopt pushed context (DESIGN_V2 \u00a73.2) if A1-T beats A0-T on success or cost by more than the spread within A0-T, AND A1-H does not raise asserts_eviction or lower success against A0-H. If A0d-T matches A1-T, declared deps/context on the task are enough: the change belongs in planning (plan-review enrichment), not in the brief. Adopt the KB page if A2 beats A1 on success or cost in either state; A2-H vs A1-H shows whether a fact page overrides a wrong narrative.",
+ "calibration": "runs/pilot-base (base target, k=1): 6 of 7 succeeded, including the no-context arms \u2014 investigators attributed reserves by sku, qty and timing (timestamp minus took), which is exact at ~1 request per 12 s (build_target's timing heuristic: 100% of rows). The join was not needed, so the fixture moved to the bursty profile (timing heuristic: 36% of rows exact; seed 3). Nobody queried the board in any arm (0/7).",
+ "target_profile": "bursty"
+}

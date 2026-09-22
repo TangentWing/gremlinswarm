@@ -1,0 +1,97 @@
+{
+ "results": [
+  {
+   "id": "sonnet45/A2-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end to end using computed idempotency keys. All show multiple inventory reserves (2-3 per request) with distinct keys per retry attempt, confirming B-shared-0001. See B-logs-0003 and trace.json.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end in merged.log. Attribution method: computed idempotency keys as sha1('<rid>:<attempt>')[:8] and matched against inventory reserve operations. All 5 requests show multiple reserves (2-3 per request), confirming that retry attempts use different idempotency keys, causing double/triple stock reservation for the same order.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end. Each gateway retry uses a different idempotency key (sha1(rid:attempt)[:8]), causing inventory to reserve stock multiple times per request. All 5 traced requests had 2-3 successful reservations but only 1 confirmed order.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json",
+     "trace_timeouts.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced all 33 timed-out requests end-to-end. Gateway retries use different idempotency keys (short_hash(rid:attempt)), causing multiple inventory reservations per request. Every timed-out request had 2-3 reservations (79 total). Trace data in trace.json; mechanism in B-logs-0003.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json",
+     "lanes/logs/tasks/logs-r02-01/trace_requests.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end in merged.log. Attribution method: matched inventory reserves to requests by correlating reserve start time (completion - took duration) with orders place timestamp and sku/qty. All 5 requests (r-0023, r-0061, r-0065, r-0074, r-0084) show 2-3 inventory reserves each with distinct idempotency keys, confirming double/triple reservation occurs when gateway retries trigger new reserve calls rather than being deduplicated.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0d-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 6 timed-out requests end to end. Each timed-out attempt that completes reserves stock; retries also reserve. Result: 6 requests \u2192 14 reserves \u2192 6 confirmations. See trace.json and B-logs-0003.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A2-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 6 timed-out requests end-to-end using computed idempotency keys; all had multiple inventory reserves (2-3 per request) because gateway retries use different keys than the original slow request that eventually completes.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  }
+ ]
+}

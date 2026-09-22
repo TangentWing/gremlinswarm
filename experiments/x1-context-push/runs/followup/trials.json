@@ -1,0 +1,150 @@
+{
+ "run": "x1-context-push/followup",
+ "target_profile": "bursty",
+ "trials": [
+  {
+   "id": "sonnet45/A3-T-1",
+   "cell": "A3-T",
+   "role": "investigator",
+   "inv": "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A3-T-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "task": "logs-r02-01",
+   "title": "Trace timed-out requests end to end in merged.log"
+  },
+  {
+   "id": "sonnet45/A3-T-2",
+   "cell": "A3-T",
+   "role": "investigator",
+   "inv": "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A3-T-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "task": "logs-r02-01",
+   "title": "Trace timed-out requests end to end in merged.log"
+  },
+  {
+   "id": "sonnet45/A3-T-3",
+   "cell": "A3-T",
+   "role": "investigator",
+   "inv": "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A3-T-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "task": "logs-r02-01",
+   "title": "Trace timed-out requests end to end in merged.log"
+  },
+  {
+   "id": "sonnet45/A3-T-4",
+   "cell": "A3-T",
+   "role": "investigator",
+   "inv": "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A3-T-4",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "task": "logs-r02-01",
+   "title": "Trace timed-out requests end to end in merged.log"
+  },
+  {
+   "id": "sonnet45/A3-H-1",
+   "cell": "A3-H",
+   "role": "investigator",
+   "inv": "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A3-H-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "task": "logs-r02-01",
+   "title": "Trace timed-out requests end to end in merged.log"
+  },
+  {
+   "id": "sonnet45/A3-H-2",
+   "cell": "A3-H",
+   "role": "investigator",
+   "inv": "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A3-H-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "task": "logs-r02-01",
+   "title": "Trace timed-out requests end to end in merged.log"
+  },
+  {
+   "id": "sonnet45/A3-H-3",
+   "cell": "A3-H",
+   "role": "investigator",
+   "inv": "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A3-H-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "task": "logs-r02-01",
+   "title": "Trace timed-out requests end to end in merged.log"
+  },
+  {
+   "id": "sonnet45/A3-H-4",
+   "cell": "A3-H",
+   "role": "investigator",
+   "inv": "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A3-H-4",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "task": "logs-r02-01",
+   "title": "Trace timed-out requests end to end in merged.log"
+  },
+  {
+   "id": "sonnet45/A1L-H-1",
+   "cell": "A1L-H",
+   "role": "investigator",
+   "inv": "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A1L-H-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "task": "logs-r02-01",
+   "title": "Trace timed-out requests end to end in merged.log"
+  },
+  {
+   "id": "sonnet45/A1L-H-2",
+   "cell": "A1L-H",
+   "role": "investigator",
+   "inv": "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A1L-H-2",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "task": "logs-r02-01",
+   "title": "Trace timed-out requests end to end in merged.log"
+  },
+  {
+   "id": "sonnet45/A1L-H-3",
+   "cell": "A1L-H",
+   "role": "investigator",
+   "inv": "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A1L-H-3",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "task": "logs-r02-01",
+   "title": "Trace timed-out requests end to end in merged.log"
+  },
+  {
+   "id": "sonnet45/A1L-H-4",
+   "cell": "A1L-H",
+   "role": "investigator",
+   "inv": "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A1L-H-4",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 2,
+   "lane": "logs",
+   "task": "logs-r02-01",
+   "title": "Trace timed-out requests end to end in merged.log"
+  }
+ ]
+}

@@ -1,0 +1,1 @@
+{"run": "x3-strategy-council/stage-b2", "base": "<repo>/investigations/_exp/x3-strategy-council/stage-b2", "k": {"sonnet45": 3}, "models": {"sonnet45": "claude-sonnet-4-5"}, "cells": [{"id": "C2c-S1", "role": "chair", "round": 1}, {"id": "C2c-S2", "role": "chair", "round": 2}, {"id": "C2c-S0", "role": "chair", "round": 1}]}

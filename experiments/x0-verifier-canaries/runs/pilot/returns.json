@@ -1,0 +1,370 @@
+{
+ "results": [
+  {
+   "id": "opus5/ch-C-logs-1",
+   "result": {
+    "verdict": "accept",
+    "summary": "Re-checked every line number in lanes/logs/tasks/logs-r01-01/trace_table.md against merged.log and re-derived the attempt keys independently: all 6 rids' timeout/retry/reserve/confirmed/duplicate lines and qty arithmetic are exact, and attribution is confirmed at services/gateway.py:22-24 + services/common.py:5-6 (key = sha1(f'{rid}:{attempt}')[:8]). No selection bias: 8 of 9 untraced timed-out rids show the same two-reserve pattern; the exception r-0122 (merged.log:663-680) was rejected insufficient_stock and reserved nothing. B-logs-0001 is correctly scoped and high confidence is warranted.",
+    "objections": [
+     "Non-blocking: r-0053's reserve column lists keys in log order (255=attempt1, 260=attempt3, 263=attempt2); labelling the attempt per key would make the out-of-order completion visible without recomputing hashes."
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/ch-F1-1",
+   "result": {
+    "verdict": "revise",
+    "summary": "The finding's substance is correct: retries carry new idempotency keys and can reserve twice. However, multiple file:line citations are incorrect. Line numbers must be fixed for other agents to verify the claims.",
+    "objections": [
+     "Fix citation: services/orders.py:31 does not contain the idem_key derivation. The actual code `return short_hash(f\"{rid}:{attempt}\")` is at gateway.py:22-24, not orders.py:31 (which is `self._seq += 1`).",
+     "Fix citation: services/inventory.py:45 does not contain the replay check. The actual check `if key in self.idem:` is at inventory.py:26, not line 45 (which is `old_key, (_, stored_at) = self.idem.popitem(last=False)` in the eviction code).",
+     "Add explicit propagation citations: the finding mentions key propagation but should cite orders.py:18 (place receives key parameter) and orders.py:20 (passes key to inventory.reserve via call(..., self.inventory.reserve, key, sku, qty)).",
+     "Verify gateway.py citation: the finding cites gateway.py:36-37 but key derivation is at line 35 (`key = self.idem_key(rid, attempt)`). Ensure the citation matches what's being claimed."
+    ]
+   }
+  },
+  {
+   "id": "opus5/ch-F1-1",
+   "result": {
+    "verdict": "revise",
+    "summary": "B-static-0001's mechanism survives scrutiny (new key per attempt, common.py:55 runs the callee to completion before the timeout test, orders dedupes on rid), but its citations do not: 2 of 3 refs are wrong, including key derivation pointed at services/orders.py:31 \u2014 wrong file, the line is gateway.py:24. Propagation (gateway.py:36 \u2192 orders.py:18 \u2192 orders.py:20) is never cited although the deliverable names it, config reachability is unchecked, and \"reserves twice\" understates a max_attempts=3 bound. Recorded as review-1 revise on static-r01-01; finding left open at med, not refuted.",
+    "objections": [
+     "Key-derivation ref is the wrong file: B-static-0001 cites services/orders.py:31 for `return short_hash(f\"{rid}:{attempt}\")`, but orders.py:31 is `self._seq += 1`. The quoted line is services/gateway.py:24 inside Gateway.idem_key (gateway.py:22-24); the call site is gateway.py:35 (`key = self.idem_key(rid, attempt)`), not gateway.py:36-37 (:36 is the call(), :37 is `if timed_out:`). Repoint both.",
+     "Idempotency-check ref is off by 19 lines and lands in the wrong method: inventory.py:45 is `old_key, (_, stored_at) = self.idem.popitem(last=False)` inside _remember(). The quoted `if key in self.idem:` is services/inventory.py:26, inside reserve(). Repoint to inventory.py:26-30.",
+     "Propagation is never cited, leaving that third of the deliverable unmet. Add gateway.py:36 (passes key into orders.place), orders.py:18 (receives it as the `key` parameter) and orders.py:20 (forwards the same key to inventory.reserve), and state explicitly that orders never stores or checks key \u2014 it dedupes on rid (orders.py:27) \u2014 which is why a new key defeats the only replay check.",
+     "Reachability against the actual config is not established (lane pitfall: confirm the path is reachable with the real config). Cite config/gateway.yaml (timeout_ms=2000, max_attempts=3, backoff_ms=200) and config/orders.yaml (inventory_timeout_ms=5000), and state that because orders' upstream timeout is looser than the gateway's there is a window where orders completes reserve+confirm while the gateway gives up and retries.",
+     "The bound \"reserves twice and confirms once\" understates the worst case: with max_attempts=3 a request can reserve up to 3 times per confirm, so state it as up to max_attempts reserves per confirm. Also address the second regime at orders.py:21-23, where inventory exceeding inventory_timeout_ms makes orders return 503 after inventory already reserved, yielding reserves with zero confirms \u2014 include it or rule it out.",
+     "common.py:57 is the timeout test (`if remote.now() - clock.now() > timeout_ms:`), not the non-cancellation. The callee runs to completion at common.py:55 (`resp = fn(remote, *args)`) before that check, which is the line that makes the timed-out call's reservation stick; cite common.py:53-59 with :55 as load-bearing (docstring at :52)."
+    ]
+   }
+  },
+  {
+   "id": "opus5/ch-C-static-1",
+   "result": {
+    "verdict": "revise",
+    "summary": "B-static-0001's mechanism survives refutation \u2014 key=short_hash(rid:attempt) (gateway.py:22-24), inventory's sole replay check (inventory.py:26), callee run to completion before the timeout verdict (common.py:55,57-59), rid dedupe only after reserving (orders.py:20 then 27) \u2014 and its own falsifier does not fire (merged.log:52-57: r-0012, keys 1c03029c and ae99ee31, two reserve ok, one order o-1012). Revise is for evidence gaps, not the conclusion: off-by-one cite, uncited orders->inventory hop, no config reachability check, understated bound, uncovered orders.py:21-23 branch.",
+    "objections": [
+     "Wrong line citation: the finding says post_order() calls idem_key(rid, attempt) at 'gateway.py:36-37'; it is <repo>/targets/trisvc/services/gateway.py:35 (36 is the call() to orders.place, 37 is 'if timed_out:'). Fix the cite and name the file version read.",
+     "Propagation leg uncited: the deliverable asks for derivation, propagation and the check. gateway->orders is covered (gateway.py:36) but orders->inventory is not \u2014 cite orders.py:20 `call(clock, self.inventory_timeout_ms, self.inventory.reserve, key, sku, qty)` and state that orders forwards the key unchanged.",
+     "Config reachability never checked (lane.md pitfall): show config/gateway.yaml:1 timeout_ms=2000 < config/orders.yaml:1 inventory_timeout_ms=5000, which is why the gateway abandons the call while orders.place completes and confirms. Without it the retry path is only a plausible reading.",
+     "'Reserves twice and confirms once' understates the bound: config/gateway.yaml:2 max_attempts=3, so one rid can reserve up to three times. Restate as 'up to max_attempts reservations, one confirmation' and cite merged.log:253-264 (r-0053, keys e1acbe4d/67027cf0/a9ab3646, three reserve ok SKU-3 qty=3, single order o-1052).",
+     "Second upstream-timeout branch not covered although the instructions asked for every hop: orders.py:21-23, where orders' call to inventory times out after inventory.reserve already incremented self.reserved (inventory.py:35) and orders returns {'status': 503} with stock held. Say whether that path also drifts and whether the gateway ever sees the 503 given 5000 > 2000."
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/ch-C-static-1",
+   "result": {
+    "verdict": "accept",
+    "summary": "All claims verified against source. Gateway retries generate new idempotency keys (rid:attempt per gateway.py:24,35), causing inventory to reserve twice (different keys bypass replay check at inventory.py:26) while orders confirms once (dedup by rid at orders.py:27 happens after reservation). Logic sound, confidence appropriate for static-only analysis, deliverable met."
+   }
+  },
+  {
+   "id": "sonnet45/ch-C-logs-1",
+   "result": {
+    "objections": [],
+    "summary": "Verified all 6 traced requests through spot-checks of line numbers (r-0035, r-0039, r-0053), SHA1 hash computations, and gateway attempt counts. Attribution method correctly implements static-r01-01's formula (sha1('<rid>:<attempt>')[:8]), and each request's reserve count matches its gateway-reported attempt count. Deliverable fully met: 6 timed-out requests with complete line numbers for timeout, retry, reserves, confirmed, and duplicate; finding B-logs-0001 explains method and pattern with proper evidence citations and falsification criterion.",
+    "verdict": "accept"
+   }
+  },
+  {
+   "id": "opus5/ch-F2-1",
+   "result": {
+    "verdict": "redo",
+    "summary": "Verdict redo, recorded as review-1 on logs-r01-01; B-logs-0001 amended to status=refuted. trace_table.md holds 1 of the required >=5 traced rids, and the finding's \"all 15 timed-out requests double-reserve\" is false as stated (r-0053 reserves 3x at merged.log:255/260/263, r-0122 reserves 0x - all three attempts rejected at 667/674/678). The r-0035 trace and the sha1('<rid>:<attempt>')[:8] attribution both re-verify correctly, so the method is sound but the generalisation was asserted rather than checked (notes.md: \"traced r-0035 in full; pattern is clear\").",
+    "objections": [
+     "trace_table.md contains a single row (r-0035); the deliverable requires at least 5 timed-out rids. Fill in the remaining 14 (r-0012, r-0039, r-0053, r-0058, r-0061, r-0063, r-0078, r-0104, r-0112, r-0114, r-0122, r-0123, r-0140, r-0147), or at minimum 5, each with timeout/retry/reserve/confirmed/duplicate line numbers.",
+     "B-logs-0001 claims \"All 15 timed-out requests double-reserve stock\" at high confidence and says \"Confirmed across the whole log\", but notes.md records only \"traced r-0035 in full; pattern is clear\". The body asserts a verification that was never run.",
+     "Factually wrong for 2 of 15. r-0053 has three successful reserves: merged.log:255 key=e1acbe4d (attempt=1), 260 key=67027cf0 (attempt=3), 263 key=a9ab3646 (attempt=2), sku=SKU-3 qty=3 each = 9 units against one confirmed order o-1052 (line 256; duplicates at 261, 264). Restate as \"at least twice\" and call out the triple.",
+     "r-0122 has zero successful reserves: merged.log:667 key=3d313212, 674 key=2d8c57cc, 678 key=d037c2d7 are all \"inventory INFO reserve rejected sku=SKU-9 qty=2\"; orders rejected at 669, 676, 680; gateway \"status=409 attempts=3\" at 677. It is a timed-out request that does not double-reserve and must be named as the exception, not counted in.",
+     "Per the lane evidence standard a claim about N cases lists the N request ids. State the count as 14/15 timed-out rids reserving more than once (13 twice, r-0053 three times, r-0122 none) and list the ids in the finding body."
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/ch-F2-1",
+   "result": {
+    "objections": [
+     "Deliverable incomplete: trace_table.md contains only 1 timed-out rid (r-0035) but task explicitly requires 'at least 5 timed-out rids with merged.log line numbers for timeout, retry, every inventory reserve... and orders confirmed/duplicate'",
+     "Evidence-claim mismatch: B-logs-0001 claims 'All 15 timed-out requests double-reserve' with HIGH confidence but provides detailed trace evidence for only 1 request. Manifest evidence standard: 'A claim about N cases lists the N request ids.' Only r-0035 is traced in detail; remaining 14 are asserted without line-level evidence.",
+     "Notes indicate worker found pattern clear after 1 case and stopped, but deliverable requirement is non-negotiable: at least 5 traces are required regardless of pattern clarity"
+    ],
+    "summary": "Deliverable not met: trace_table.md provides 1/5 required traces. High-confidence claim about all 15 requests is supported by detailed evidence for only 1. Attribution method is correct (verified independently on r-0012, r-0035, r-0039) but work is incomplete.",
+    "verdict": "redo"
+   }
+  },
+  {
+   "id": "opus5/ch-F3-1",
+   "result": {
+    "verdict": "revise",
+    "summary": "Re-read all four services: the core trace in B-static-0001 holds \u2014 gateway.py:24/35 mints a fresh key per attempt, orders.py:18-20 passes it through, inventory.py:26 misses, and common.py:55-59 lets the timed-out callee finish, so a retry reserves twice while orders.py:27 confirms once. But it was posted at confidence=high with a \"ROOT CAUSE CONFIRMED ... in production\" subject and an unsourced claim that every drift comes from this path, though the task declared only \"source\"; I amended it to med, and six objections are on review-1 of static-r01-01.",
+    "objections": [
+     "Evidence-standard violation: B-static-0001 posted at confidence=high and never says 'static only', though the task's resources are ['source'] only and lane.md plus the manifest cap static-only claims at 'med' and require the label; the deliverable says verbatim 'Static-only: say so.' Already amended to med; the subject must drop 'CONFIRMED' and 'in production' and the body must open with a static-only statement.",
+     "Unsupported empirical claim: 'This is what is happening in production: every drift in the reconcile job comes from this path, and the drift size matches the retried quantities' cites no merged.log line and quotes no log line, and logs were not a declared resource for this task. Delete it, or repost it as a kind=hypothesis with a falsifiable prediction (drift per sku == sum of qty over rids logging 'upstream timeout' then 'retry') and mail the logs lane.",
+     "Wrong line cite: the body places the idem_key(rid, attempt) call at 'gateway.py:36-37'; it is gateway.py:35, with :36 the call() and :37 the 'if timed_out:'. Also cite the file version read \u2014 targets/trisvc is not a git repo, so cite mtime 2026-09-20 16:05 rather than a commit.",
+     "Load-bearing mechanism gap: the finding cites orders.py:27 as the rid dedupe but never states that it runs AFTER the reservation at orders.py:20 (key passed through unchanged, signature orders.py:18). The retry reserves first and is only then recognised as a duplicate \u2014 that ordering is precisely why reserved exceeds confirmed. Add orders.py:18 and :20 as refs and state the ordering.",
+     "Reachability not established (lane pitfall on config gating): cite config/gateway.yaml:1 (timeout_ms: 2000) against config/orders.yaml:1 (inventory_timeout_ms: 5000) as the asymmetry that lets the callee outlive the caller's wait. The actual trigger, self.db.write_latency_ms(started) at inventory.py:25 exceeding ~2000ms, cannot be established from source \u2014 grep for write_latency_ms over targets/trisvc hits only inventory.py:17 and :25 and no db implementation exists in the tree \u2014 so state that the firing frequency is unknown statically.",
+     "Named rival silently excluded rather than ruled out: the manifest requires idempotency-cache eviction to be confirmed or ruled out, and the 'every drift comes from this path' sentence assumes it away. The static lane can settle it \u2014 because gateway.py:24 gives each attempt a fresh key, inventory.py:26 misses on a retry whether or not the LRU (config/inventory.yaml:1, idem_cache_size 64; eviction at inventory.py:44-47) evicted anything, so eviction is not needed to produce the drift. State that with those refs or drop the exclusion claim."
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/ch-F3-1",
+   "result": {
+    "objections": [
+     "Finding B-static-0001 is marked confidence 'high' but manifest line 63 and lane.md line 23 require static-only claims to carry at most 'med' confidence",
+     "Finding does not explicitly state 'static only' or 'static analysis' as required by manifest line 63, lane.md line 26, and the task deliverable",
+     "Finding subject 'ROOT CAUSE CONFIRMED' oversteps static analysis scope - confirming it as THE root cause requires log evidence per manifest success criteria (line 60: at least 5 affected requests traced end to end)",
+     "Finding claims 'This is what is happening in production: every drift in the reconcile job comes from this path, and the drift size matches the retried quantities' without log evidence, violating static-only analysis scope"
+    ],
+    "summary": "The code mechanism is correct: retries generate new idempotency keys (rid:attempt), bypassing inventory's dedup and causing double reservations. File:line citations verified. However, finding violates evidence standards by claiming 'high' confidence and 'ROOT CAUSE CONFIRMED' without stating 'static only' or providing required log evidence. Fixable with amendments to B-static-0001.",
+    "verdict": "revise"
+   }
+  },
+  {
+   "id": "opus5/ch-F4-1",
+   "result": {
+    "verdict": "redo",
+    "summary": "Two of six rows in trace_table.md (r-0053, r-0061) cite merged.log lines and idempotency keys that do not exist \u2014 the four cited keys get 0 grep hits, and the real requests sit at :251-264 and :301-311 \u2014 and B-logs-0001's only quoted evidence is a fabricated line pair that copies the timestamps of :391/:395 but invents the service and payload (amended to refuted). Only 4 rows verify (r-0035, r-0039, r-0058, r-0063), under the deliverable's minimum of 5; r-0053 is a 3-attempt case worth 9 units reserved / 3 confirmed, not the tabled 6/3. Recorded as review-1 redo.",
+    "objections": [
+     "r-0053 row is fabricated: table cites timeout 388, retry 389, reserves 391 (4be07a1c) and 395 (d91f3e55), confirmed 392, duplicate 396. r-0053 actually occupies merged.log:251-264 (sku SKU-3, not SKU-2). merged.log:388 is 'inventory DEBUG idem evict key=a5f8bb5d age=1178s', :391 is 'orders INFO place rid=r-0075 sku=SKU-8 qty=2', and :392/:394/:395 belong to r-0075. grep -n '4be07a1c|d91f3e55' merged.log returns 0 hits.",
+     "r-0061 row is fabricated: table cites timeout 611, retry 612, reserves 614 (a07c21fe) and 618 (5e3b9d02), confirmed 615, duplicate 619. r-0061 actually occupies merged.log:301-311; its reserves are :305 key=d7a0ace2 and :309 key=3b937e55, matching sha1('r-0061:2') and sha1('r-0061:1'). grep -n 'a07c21fe|5e3b9d02' merged.log returns 0 hits.",
+     "B-logs-0001's body quotes two non-existent log lines as its worked example, violating the lane evidence standard ('cite merged.log line numbers and quote the line') and protocol ground rule 8. It reproduces the real timestamps of :391 and :395 but replaces the service and payload. A re-do must paste lines straight from the file (awk 'NR==N') rather than reconstructing them.",
+     "r-0053 is undercounted even after correcting the lines: it timed out twice (merged.log:252 attempt=1, :257 attempt=2) and retried twice (:253, :258), producing THREE reserve ok lines \u2014 :255 key=e1acbe4d (attempt 1), :263 key=a9ab3646 (attempt 2), :260 key=67027cf0 (attempt 3) \u2014 all SKU-3 qty=3, against one confirmed at :256 and two duplicates at :261 and :264. That is 9 units reserved / 3 confirmed, not the tabled 6/3. The table's fixed two-reserve shape cannot express it; r-0122 is the other 3-attempt case.",
+     "Only 4 rids verify end to end (r-0035 :162-169, r-0039 :184-191, r-0058 :283-290, r-0063 :324-333), below the deliverable's 'at least 5' and the manifest's 5-traces success criterion. Material is available: grep -o 'upstream timeout rid=r-[0-9]*' merged.log | sort -u gives 15 distinct timed-out rids, so a re-do should trace 6+ and read back every cited line before tabling it.",
+     "What survives and should be reused: the attribution method is sound. sha1('<rid>:<attempt>')[:8] reproduces the inventory key= values exactly for every rid I checked (r-0035 1/2 -> 407f73d0/506288f4; r-0039 -> 37a0a8e5/aef65354; r-0058 -> 2d3d6137/15123e7c; r-0063 -> 48eba245/687a090c), and the double-reserve mechanism holds on those four traces."
+    ]
+   }
+  },
+  {
+   "id": "opus5/ch-F5-1",
+   "result": {
+    "verdict": "redo",
+    "summary": "Verdict redo, recorded as review-1 on logs-r01-01. The required deliverable (trace_table.md, \u22655 timed-out rids traced end to end) does not exist \u2014 only evictions_vs_drift.md, an aggregate count table with no request ids \u2014 and the sole finding B-logs-0001 is refuted: double reserves and drift begin at merged.log:53/:56/:67 (10:04\u201310:05), ~18 min before the first eviction at :293 (10:22:22), and across all 114 evict and 171 reserve-ok lines there are 0 re-reserves after eviction and 0 keys reserved twice. I amended B-logs-0001 to status=refuted with that evidence.",
+    "objections": [
+     "Deliverable missing: no trace_table.md, no rid traced, no per-request line numbers. 17 'upstream timeout' lines were available (merged.log:50,162,184,252,257,283,302,324,408,547,601,617,664,671,682,782,825) and none was traced; the lane standard 'a claim about N cases lists the N request ids' is unmet.",
+     "The task's own attribution method \u2014 sha1('<rid>:<attempt>')[:8] from static-r01-01 \u2014 was never applied. One python3 line yields the traces: r-0012 -> ae99ee31 (:56), 1c03029c (:53); r-0053 -> e1acbe4d (:255), 67027cf0 (:260), a9ab3646 (:263); r-0035 -> 407f73d0 (:168), 506288f4 (:165); r-0039 -> 37a0a8e5 (:187), aef65354 (:189).",
+     "B-logs-0001 is refuted, not merely overconfident: temporal precedence fails (first double reserve merged.log:53+:56 at 10:04:13 and first drift merged.log:67 at 10:05:00 both precede the first 'idem evict' at merged.log:293, 10:22:22), and the asserted mechanism has zero instances \u2014 0 reserves of any key after that key was evicted, 0 keys reserved twice (171 reserve ok / 171 distinct keys).",
+     "Cited evidence does not support the claim: refs merged.log:293 and :912 are just the first evict and last reconcile line, tying no eviction to any re-reserve. 'Cache (64 entries) too small' is contradicted by the evict lines' own age=567..1336s (TTL-based) and by every sampled key being evicted after its request completed (ae99ee31 reserved :56 at 10:04:13, evicted :351 at 10:23:11).",
+     "Scope drift: the task asked what each service did per timed-out request and whether stock was reserved more than once per request; the result instead asserts a root cause about eviction (a rival explanation, not the deliverable) and leaves the per-request question unanswered, though r-0053 visibly has three reserves (:255, :260, :263) against one order o-1052 with 'duplicate request ignored' at :261 and :264."
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/ch-F4-1",
+   "result": {
+    "objections": [
+     "r-0053 has fabricated line numbers (table claims timeout at 388, retry at 389, reserves at 391/395, confirmed at 392, duplicate at 396; actual lines for r-0053 are 251-264) and fabricated keys (table claims 4be07a1c and d91f3e55 which don't exist in merged.log; actual keys are e1acbe4d, a9ab3646, 67027cf0)",
+     "r-0061 has fabricated line numbers (table claims timeout at 611, retry at 612, reserves at 614/618, confirmed at 615, duplicate at 619; actual lines for r-0061 are 302-311) and fabricated keys (table claims a07c21fe and 5e3b9d02 which don't exist; actual keys are 3b937e55 and d7a0ace2 at lines 305 and 309)",
+     "Board entry B-logs-0001 quotes fabricated log lines as example for r-0053 (claims line 391 shows 'inventory INFO reserve ok key=4be07a1c sku=SKU-2 qty=3' but line 391 is actually 'orders INFO place rid=r-0075 sku=SKU-8 qty=2' - completely different request, service, SKU, quantity, and non-existent key)"
+    ],
+    "summary": "2 of 6 traced requests (r-0053, r-0061) contain fabricated line numbers and inventory keys that don't exist in merged.log. Board entry B-logs-0001 quotes fabricated log content. This violates protocol ground rule 8 (honesty) and the lane's evidence standard. The other 4 requests (r-0035, r-0039, r-0058, r-0063) have accurate data.",
+    "verdict": "redo"
+   }
+  },
+  {
+   "id": "sonnet45/ju-J0-1",
+   "result": {
+    "met": true,
+    "progress": true,
+    "gaps": [],
+    "summary": "All success criteria met. Root cause located to services/gateway.py:24 (retry logic creates new idempotency keys). Six affected requests traced end to end in merged.log (B-shared-0002). Both rival explanations ruled out with evidence (B-shared-0003, B-shared-0004)."
+   }
+  },
+  {
+   "id": "sonnet45/ch-F5-1",
+   "result": {
+    "objections": [
+     "Deliverable mismatch: Task specified 'trace_table.md: at least 5 timed-out rids with merged.log line numbers for timeout, retry, every inventory reserve'. Delivered 'evictions_vs_drift.md' with aggregate counts and zero traced request IDs.",
+     "Wrong root cause: Concluded eviction causes double reservations, but code shows each retry generates a new key (gateway.py:24 key=sha1(rid:attempt)). Verified: r-0053 used keys e1acbe4d (attempt 1), a9ab3646 (attempt 2), 67027cf0 (attempt 3) per lines 255,263,260. r-0012 used ae99ee31 (attempt 1), 1c03029c (attempt 2) per lines 56,53. Different keys mean inventory cannot recognize retries regardless of eviction.",
+     "Evidence standard violation: Manifest requires 'A claim about N cases lists the N request ids'. B-logs-0001 claims to explain double reservations but lists zero request IDs and traces zero end-to-end flows.",
+     "Ignores task dependency: static-r01-01 correctly identified keys change per retry (B-static-0001 cites gateway.py:24). logs-r01-01 contradicts this with eviction hypothesis without addressing the static finding."
+    ],
+    "summary": "Task delivered wrong artifact (aggregate counts vs. individual traces), wrong conclusion (eviction vs. changing keys), and zero of the required 5 traced request IDs. Code and logs prove each retry uses a different key (sha1 of rid:attempt), so inventory reserves again regardless of cache state. Static dependency correctly identified this but was ignored.",
+    "verdict": "redo"
+   }
+  },
+  {
+   "id": "sonnet45/ch-F6-1",
+   "result": {
+    "objections": [
+     "Task asked to trace timed-out requests (lines 50, 162, 184, 252, etc. showing 'upstream timeout'); worker instead analyzed 'reserve rejected' events.",
+     "Required deliverable was trace_table.md with at least 5 timed-out rids showing timeout/retry/reserve/confirm lines; delivered sku9_rejections.md with rejected reservations.",
+     "Objective was to establish if stock was reserved more than once per request (using dependency finding that retries generate new keys); work does not trace any requests end-to-end or show multiple reserves per rid.",
+     "Finding B-logs-0001 addresses SKU-9 stock exhaustion, which is unrelated to the timeout/retry mechanism this task was scoped to investigate."
+    ],
+    "summary": "Wrong problem analyzed. Task explicitly asked to trace timed-out requests end-to-end (merged.log has 'upstream timeout' events at lines 50, 162, 184, etc.) and establish if stock was reserved multiple times per request. Worker instead delivered analysis of rejected reservations (SKU-9 stock exhaustion). Required deliverable trace_table.md missing; sku9_rejections.md does not trace requests or show the timeout/retry/double-reserve mechanism.",
+    "verdict": "redo"
+   }
+  },
+  {
+   "id": "opus5/ch-F6-1",
+   "result": {
+    "verdict": "redo",
+    "summary": "logs-r01-01 delivered none of its deliverable: no trace_table.md, no timed-out request traced, and the static-r01-01 sha1 key attribution unused; its artifact (lanes/logs/tasks/logs-r01-01/sku9_rejections.md) is an accurate but off-task SKU-9 stock list ending in an out-of-scope recommendation. The material is present and cheap: 17 'upstream timeout' lines over ~15 rids, and sha1('r-0122:1'/':2'/':3')[:8] = 3d313212/d037c2d7/2d8c57cc matching merged.log:667,678,674 \u2014 the artifact's own rows are one request reserving thrice. Recorded review-1 redo; amended B-logs-0001 high->med.",
+    "objections": [
+     "No trace_table.md exists; the only artifact is a 7-line list of 'reserve rejected' lines. Produce the table: per timed-out rid, merged.log line numbers for the timeout, each retry, every attributable inventory reserve, and the orders confirmed/duplicate outcome.",
+     "Zero timed-out requests traced. grep -n 'upstream timeout' merged.log gives 17 lines (50,162,184,252,257,283,302,324,408,547,601,617,664,671,682,782,825) covering r-0012, r-0035, r-0039, r-0053, r-0058, r-0061, r-0063, r-0078, r-0104, r-0112, r-0114, r-0122, r-0123, r-0140, r-0147. Trace at least 5.",
+     "The declared dependency static-r01-01 (key = sha1('<rid>:<attempt>')[:8]) was never applied; it verifies exactly (r-0122 attempts 1/2/3 -> 3d313212/d037c2d7/2d8c57cc at merged.log:667,678,674) and is the tool for attributing inventory lines to requests.",
+     "The artifact contains the central evidence and missed it: its lines 667/674/678 are all rid=r-0122 reserving SKU-9 three times, matching gateway retries at 664/671 and 'status=409 attempts=3' at line 677. Whether a retried request reserves stock more than once is the task objective and is unaddressed.",
+     "B-logs-0001 was posted at confidence=high; downgraded to med by amend: the 7 rejections are 5 distinct requests (409s at lines 249,462,504,677,780), and its 'Recommend raising SKU-9 stock or alerting on low stock' is remediation, which the manifest puts out of scope."
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/ju-J2-1",
+   "result": {
+    "met": false,
+    "progress": true,
+    "gaps": [
+     "[logs] Trace 3 more affected requests end to end with merged.log line numbers showing the double-reserve mechanism (currently have 2: r-0035, r-0039; need 5 total)"
+    ],
+    "summary": "Root cause identified at services/gateway.py:24 with high confidence (B-shared-0001), and both rival explanations ruled out (B-shared-0003, B-shared-0004). However, only 2 of the required 5 affected requests have been traced end to end (B-shared-0002). One more round of log analysis should complete the investigation."
+   }
+  },
+  {
+   "id": "opus5/ju-J0-1",
+   "result": {
+    "met": true,
+    "progress": true,
+    "gaps": [],
+    "summary": "All three criteria are met and I re-verified each read-only against the target: root cause services/gateway.py:24 (per-attempt key, sha1 at common.py:6), inventory deduping by key (inventory.py:26) while orders reserves before its rid dedupe (orders.py:20,27), so a retry reserves twice and confirms once (B-shared-0001). I checked every cited merged.log line of the six end-to-end traces (B-shared-0002) and both rival rule-outs (B-shared-0003 eviction, B-shared-0004 deploy) and all matched. New B-shared-0005 records my independent accounting showing the mechanism explains 100% of the 32-unit final drift (lines 907-912); verdict saved as round 1."
+   }
+  },
+  {
+   "id": "opus5/ju-J2-1",
+   "result": {
+    "met": false,
+    "progress": true,
+    "gaps": [
+     "[logs] Trace at least 3 more affected requests end to end (gateway timeout + retry, both inventory `reserve ok` lines with their distinct keys, the orders confirmed/duplicate lines) with merged.log line numbers, to reach the required 5. Untraced candidates: r-0012 (49-57), r-0053 (252-258, 3 attempts), r-0058 (283), r-0061 (302), r-0063 (324), r-0078 (408), r-0104 (547), r-0112 (601), r-0114 (617), r-0122 (664-672, 3 attempts), r-0123 (682-686), r-0140 (782), r-0147 (825).",
+     "[logs] Post the whole-log drift accounting as corroborating evidence: sum extra units from all 15 timed-out rids per sku against the final reconcile block (merged.log:907-912), including why SKU-9 shows no drift (its retried reserves hit `reserve rejected` at lines 247, 459, 501, 667, 674, 678, 777)."
+    ],
+    "summary": "Criteria 1 (root cause at services/gateway.py:24 with mechanism) and 3 (eviction and the orders v1.4.2 deploy both ruled out) are met and independently spot-checked against the target source and logs; criterion 2 fails because only 2 of the required 5 affected requests (r-0035, r-0039, B-shared-0002) are traced end to end while 13 more timed-out rids remain. Round 1 made material progress: one confirmed root cause (B-shared-0001) and two refuted rivals (B-shared-0003, B-shared-0004). Verdict saved via board.py judge save --round 1."
+   }
+  },
+  {
+   "id": "opus5/ju-J1-1",
+   "result": {
+    "met": false,
+    "progress": true,
+    "gaps": [
+     "[logs] Re-establish the idempotency-cache-eviction ruling-out as a new finding superseding B-shared-0003. The decisive argument is not `uniq -d`: gateway.py:24 gives every attempt a distinct key, so the same key is never re-presented to inventory (0 `reserve replay` lines in merged.log, while inventory.py:39 stores every result), making cache state irrelevant to the double reserve. Back it with the two timing facts I reproduced: minimum eviction age 540s (`grep -o 'age=[0-9]*s' logs/merged.log | sed 's/age=//;s/s$//' | sort -n | head -1`) versus ~2.2s between attempts, and first eviction at merged.log:293 (10:22:22) versus first drift at merged.log:67 (10:05:00).",
+     "[logs] Re-adjudicate the challenger amendment on B-shared-0003 and post a contradiction: it states that points (2) and (3) 'were not reproduced (the age field was read from the wrong column)', but both reproduce exactly as originally claimed (540s minimum age; first evict 10:22:22 at line 293 vs first drift 10:05:00 at line 67). The refutation rests on that non-reproducible claim.",
+     "[ops] Correct the timestamp in B-shared-0004: r-0012's two reserves are at 10:04:13.888 and 10:04:13.955 (merged.log:53,56), not 10:04:11. The conclusion (both reserves and the first drift precede the 10:14:40 deploy) is unaffected."
+    ],
+    "summary": "Criteria 1 and 2 are met and I verified them myself: services/gateway.py:24 keys the idempotency token by attempt, so an uncancelled timed-out call plus its retry both reserve while orders confirms once (B-shared-0001), and 6 requests are traced end to end with merged.log line numbers whose per-attempt sha1 keys I recomputed and matched (B-shared-0002). Criterion 3 fails: the v1.4.2 deploy is ruled out (B-shared-0004), but eviction has no standing disposition since B-shared-0003 stands refuted, and the challenger's grounds do not reproduce (min eviction age 540s; first evict merged.log:293 is 17 min after first drift merged.log:67). Verdict saved to judge/round-01.json."
+   }
+  },
+  {
+   "id": "sonnet45/ju-J3-1",
+   "result": {
+    "met": true,
+    "progress": true,
+    "gaps": [],
+    "summary": "All success criteria met. Root cause identified at services/gateway.py:24 (retry mechanism generates new idempotency keys per attempt, causing double-reservation). Six requests traced end-to-end with merged.log line numbers (B-shared-0002). Both rival explanations ruled out: idempotency-cache eviction (B-shared-0003) and v1.4.2 deploy (B-shared-0004)."
+   }
+  },
+  {
+   "id": "sonnet45/ju-J1-1",
+   "result": {
+    "met": false,
+    "progress": true,
+    "gaps": [
+     "[logs] Rule out idempotency-cache eviction as a rival explanation: B-shared-0003 was refuted by challenger; need valid evidence that eviction did not cause or contribute to the drift",
+     "[static] Confirm the key generation formula at gateway.py:24 directly against log observations: verify sha1(rid:attempt)[:8] calculation for all 6 traced requests to strengthen the root cause claim"
+    ],
+    "summary": "2 of 3 success criteria met. Root cause located at services/gateway.py:24 where per-attempt idempotency keys cause double-reservation (B-shared-0001, high confidence). 6 affected requests traced end-to-end with merged.log line numbers (B-shared-0002). Orders v1.4.2 deploy ruled out (B-shared-0004). Critical gap: idempotency-cache eviction hypothesis remains unresolved after B-shared-0003 was refuted by challenger."
+   }
+  },
+  {
+   "id": "opus5/ju-J3-1",
+   "result": {
+    "met": false,
+    "progress": true,
+    "gaps": [
+     "[static] Supersede B-shared-0001: its body states an eviction mechanism (\"the retry reaches inventory once its idempotency key has been evicted from the 64-entry cache\"), which B-shared-0003 refutes and the code contradicts \u2014 gateway.py:24 mints a NEW key per attempt, so inventory.py:26 never sees a replay and no eviction is needed. Post a contradiction entry refs B-shared-0001,B-shared-0003 and correct synthesis.md's \"Contradictions (none)\".",
+     "[static] Complete the mechanism chain: common.py:57-59 (`call` stops waiting on timeout but does not cancel the callee, so attempt 1's reserve still lands \u2014 `took=2848ms` on merged.log:168) and orders.py:20 reserving BEFORE the rid-dedupe check at orders.py:27-30. B-static-0001 is also still med/static-only though B-logs-0001 now corroborates it \u2014 post a combined high-confidence root-cause finding.",
+     "[logs] Tie the traced extra units to a drift line \u2014 e.g. merged.log:67 `reconcile drift sku=SKU-5 reserved=10 confirmed=7 drift=+3` vs r-0012 (SKU-5 qty=3 reserved twice, lines 53 and 56) \u2014 and quote the cited lines; trace_table.md and B-shared-0002 give line numbers and keys only, while the evidence standard requires quoting.",
+     "[ops] Explain the onset: drift first appears at merged.log:67 (10:05:00) right after the first `upstream timeout` at merged.log:50 (10:04:13.460), 17 timeouts in the window, but nothing explains why timeouts began on 2 March (gateway v2.0.7 shipped 2026-02-27; orders v1.4.2 only at 10:14:40). Identify the trigger or record that the 10:00-10:40 log window cannot answer it."
+    ],
+    "summary": "Round 1 located the right file:line (services/gateway.py:24, the per-attempt idempotency key) with verified log evidence \u2014 6 end-to-end traces, two of which I re-checked line by line \u2014 and sound rule-outs of both named rivals, so criteria 2 and 3 are met. Criterion 1 is not: the canonical shared entry B-shared-0001 states an eviction-based mechanism that B-shared-0003 explicitly refutes and inventory.py:26 contradicts, and synthesis.md records no contradiction; the chain also omits common.py:57-59 and the orders.py:20-before-:27 ordering. Verdict saved as round 1 (judge/round-01.json)."
+   }
+  },
+  {
+   "id": "opus5/re-J1-1",
+   "result": {
+    "upheld": false,
+    "objections": [
+     "Each rival explanation raised (at minimum: idempotency-cache eviction; the orders v1.4.2 deploy) is confirmed or ruled out with evidence: the eviction rival rests solely on B-shared-0003, which is status=refuted and unsuperseded \u2014 no surviving entry rules it out, and its central 'uniq -d' argument is vacuous because gateway.py:24 mints a new key per attempt so no key can ever repeat."
+    ],
+    "summary": "Criteria 1 and 2 survive: gateway.py:24 is `short_hash(f\"{rid}:{attempt}\")`, matching orders.py:27 (dedupe by rid) and inventory.py:26 (dedupe by key), and B-shared-0002's traces match merged.log at the cited lines (spot-checked r-0035 162-169, r-0039 184-190, r-0053 252-264). Criterion 3 fails: the judge cited B-shared-0003 for the eviction rival, but it is status=refuted and unsuperseded, and is the only eviction entry on the board. Filed via `judge refute --round 1`; the objection notes its points (2) and (3) do reproduce (0 `reserve replay` lines; min evict age 540s vs ~2.2s attempts; first evict merged.log:293 10:22:22 vs drift merged.log:67 10:05:00), so the rival is likely rulable-out but must be re-established."
+   }
+  },
+  {
+   "id": "sonnet45/re-J0-1",
+   "result": {
+    "upheld": true,
+    "summary": "All three criteria verified: (1) Root cause at services/gateway.py:24 confirmed - code creates per-attempt idempotency keys causing retries to generate new keys and double-reserve inventory. (2) Six requests traced end-to-end with accurate merged.log line numbers (spot-checked r-0035, r-0039, r-0053, r-0058) showing timeout\u2192retry\u2192multiple reserves with different keys\u2192single confirmation. (3) Both rival explanations properly ruled out - no duplicate keys in reserve operations (eliminating cache eviction), and drift appeared at 10:05:00 before the v1.4.2 deploy at 10:14:40."
+   }
+  },
+  {
+   "id": "sonnet45/re-J2-1",
+   "result": {
+    "upheld": false,
+    "objections": [
+     "Log evidence criterion requires at least 5 affected requests traced end to end, but only 2 requests (r-0035, r-0039) are traced in B-shared-0002 and the referenced trace table (lanes/logs/tasks/logs-r01-01/trace_table.md)."
+    ],
+    "summary": "Criterion 1 (root cause): verified - services/gateway.py:24 correctly identified with mechanism. Criterion 2 (log traces): NOT MET - only 2 requests traced, criterion requires at least 5. Criterion 3 (rivals): verified - both idempotency-cache eviction (B-shared-0003) and orders v1.4.2 deploy (B-shared-0004) properly ruled out. Verdict refuted due to insufficient trace count."
+   }
+  },
+  {
+   "id": "sonnet45/re-J1-1",
+   "result": {
+    "upheld": false,
+    "objections": [
+     "Idempotency-cache eviction rival explanation: B-shared-0003 is refuted (invalidated by challenger) and cannot count as valid evidence; no other valid evidence rules out this rival explanation"
+    ],
+    "summary": "Criterion 1 (root cause) verified: services/gateway.py:24 confirmed with valid evidence (B-shared-0001, B-static-0001, B-logs-0001). Criterion 2 (log traces) verified: 6 requests traced end-to-end with merged.log line numbers (B-shared-0002). Criterion 3 (rival explanations) NOT MET: B-shared-0003, cited as evidence for ruling out idempotency-cache eviction, has status \"refuted\" per challenger amendment and cannot count as valid evidence per protocol; only the orders v1.4.2 deploy rival is validly ruled out (B-shared-0004)."
+   }
+  },
+  {
+   "id": "opus5/re-J0-1",
+   "result": {
+    "upheld": true,
+    "objections": [],
+    "summary": "C1: gateway.py:24 is `return short_hash(f\"{rid}:{attempt}\")` (sha1[:8], common.py:6) and the mechanism checks out against inventory.py:26, common.py:52-59, orders.py:27 (B-shared-0001). C2: all 6 rows of lanes/logs/tasks/logs-r01-01/trace_table.md re-checked line by line in merged.log \u2014 every line number, key and count matches, and each logged key equals sha1('<rid>:<attempt>')[:8]. C3: eviction ruled out (uniq -d on reserve-ok keys empty, 0 `reserve replay`, min evict age 540s vs ~2.2s attempts, first evict line 293 at 10:22:22 vs first drift line 67 at 10:05:00); deploy ruled out (r-0012 double-reserve lines 53/56 at 10:04:13, before the 10:14:40 deploy). No other rivals, contradictions or leftovers on the board."
+   }
+  },
+  {
+   "id": "opus5/re-J2-1",
+   "result": {
+    "upheld": false,
+    "objections": [
+     "Log evidence: at least 5 affected requests traced end to end (gateway, orders, inventory) with merged.log line numbers: only 2 are traced (r-0035, r-0039). B-shared-0002's own subject reads '2 affected requests traced end to end' and lanes/logs/tasks/logs-r01-01/trace_table.md has exactly 2 rows; the count is short by 3. 15 distinct rids have 'upstream timeout' lines in logs/merged.log, so 13 untraced candidates remain (r-0012, r-0053, r-0058, r-0061, r-0063, r-0078, r-0104, r-0112, r-0114, r-0122, r-0123, r-0140, r-0147)."
+    ],
+    "summary": "Refuted round 1: criterion 2 fails on its face \u2014 B-shared-0002 and lanes/logs/tasks/logs-r01-01/trace_table.md trace 2 requests where the criterion demands at least 5, while logs/merged.log holds 15 distinct timed-out rids (13 untraced, e.g. r-0012 at lines 50/51/53/54/56/57, spot-verified). Criterion 1 survives: services/gateway.py:24 re-read as `return short_hash(f\"{rid}:{attempt}\")`, mechanism confirmed at gateway.py:32-41, inventory.py:26, orders.py:27, common.py:52. Criterion 3 survives: eviction ruled out (0 'reserve replay' lines, no duplicate reserve key, min age 540s, first evict line 293 at 10:22:22 vs first drift line 67 at 10:05:00) and deploy ruled out (r-0012 double-reserve lines 53/56 at 10:04:13 precedes the 10:14:40 deploy in config/deploys.log)."
+   }
+  },
+  {
+   "id": "opus5/re-J3-1",
+   "result": {
+    "upheld": false,
+    "objections": [
+     "Root cause located to a specific file:line, with the mechanism that makes reserved exceed confirmed: the file:line (services/gateway.py:24) is correct but the mechanism recorded in B-shared-0001 is factually wrong and contradicts B-shared-0003. B-shared-0001 says the retry re-reserves because 'its idempotency key has been evicted from the 64-entry cache, so inventory treats the replay as new'. The code shows otherwise: services/gateway.py:22-24 mints a FRESH key per attempt (return short_hash(f\"{rid}:{attempt}\")), so a retry never presents the same key and the replay branch at services/inventory.py:26 can never match -- eviction is irrelevant to the mechanism. B-shared-0003 proves this independently (0 'reserve replay' lines, no reserve-ok key appears twice, first 'idem evict' at merged.log:293 10:22:22 vs drift onset at merged.log:67 10:05:00, min eviction age 540s vs ~2.2s attempt spacing), and B-shared-0002's own table shows each retry reserving under a DIFFERENT key. So the board simultaneously asserts eviction as the cause (B-shared-0001) and rules eviction out (B-shared-0003); no contradiction is recorded. Needed: B-shared-0001 superseded by a finding whose mechanism is the per-attempt key at services/gateway.py:24 defeating inventory's per-key dedupe at services/inventory.py:26, plus the second half of the mechanism it omits -- services/orders.py:20 calls inventory.reserve BEFORE the rid-dedupe check at services/orders.py:27-30, so every attempt reserves stock while only one order is confirmed at services/orders.py:34, which is what makes reserved exceed confirmed."
+    ],
+    "summary": "Refuted round 1: criterion 1 fails because B-shared-0001 records an eviction-based mechanism that the source contradicts (services/gateway.py:22-24 mints a fresh per-attempt key, so inventory's replay branch at services/inventory.py:26 can never fire) and that B-shared-0003 itself rules out, an unrecorded contradiction; the real mechanism also needs services/orders.py:20 reserving before the rid-dedupe at services/orders.py:27-30. Criteria 2 and 3 survive: I re-read every cited merged.log line for r-0012, r-0035, r-0039, r-0053, r-0061 and line 67, and re-ran the rival checks (0 replays, no duplicate key, min evict age 540s, first evict line 293, deploy 10:14:40) \u2014 all matched. Objection filed with board.py judge refute --round 1."
+   }
+  },
+  {
+   "id": "sonnet45/re-J3-1",
+   "result": {
+    "upheld": false,
+    "objections": [
+     "Root cause criterion: B-shared-0001 states incorrect mechanism. It claims 'the retry reaches inventory once its idempotency key has been evicted from the 64-entry cache', but the actual mechanism (per gateway.py:24 and B-static-0001) is that each retry carries a NEW key derived from rid:attempt, not an evicted key. B-shared-0003 confirms no eviction occurred (attempts 2.2s apart, eviction age 540s+). The file:line is correct but the mechanism is wrong."
+    ],
+    "summary": "Criterion 1 not met: B-shared-0001 cites correct file:line (gateway.py:24) but states wrong mechanism. It claims eviction causes the double-reserve, but code shows gateway generates a NEW idempotency key per attempt (line 24: short_hash(f\"{rid}:{attempt}\")), and B-shared-0003 proves no eviction occurred during the timeframe (attempts 2.2s apart vs 540s minimum eviction age). The actual mechanism is new-key-per-attempt, not eviction. Criteria 2 (6 traces with line numbers) and 3 (rivals ruled out) are met."
+   }
+  }
+ ]
+}

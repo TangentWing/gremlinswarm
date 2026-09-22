@@ -1,0 +1,31 @@
+{
+ "run": "x0-verifier-canaries/smoke",
+ "trials": [
+  {
+   "id": "sonnet45/ch-F2-1",
+   "cell": "ch-F2",
+   "role": "challenger",
+   "inv": "<repo>/investigations/_exp/x0-verifier-canaries/smoke/sonnet45/ch-F2-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "lane": "logs",
+   "task": "logs-r01-01",
+   "title": "Trace timed-out requests end to end in merged.log",
+   "verify": "light",
+   "review": 1,
+   "allowRevise": false
+  },
+  {
+   "id": "sonnet45/ju-J2-1",
+   "cell": "ju-J2",
+   "role": "judge",
+   "inv": "<repo>/investigations/_exp/x0-verifier-canaries/smoke/sonnet45/ju-J2-1",
+   "model": "claude-sonnet-4-5",
+   "model_key": "sonnet45",
+   "round": 1,
+   "stall": 0,
+   "stallRounds": 2
+  }
+ ]
+}

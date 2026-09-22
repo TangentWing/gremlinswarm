@@ -1,0 +1,1845 @@
+{
+ "results": [
+  {
+   "id": "sonnet45/C1-S2-3",
+   "result": {
+    "chosen_from": "Synthesis named idempotency-cache eviction as leading",
+    "dissent_funded": true,
+    "hypotheses": [
+     {
+      "name": "Per-attempt idempotency keys enable duplicate reserves from retries",
+      "status": "leading",
+      "reason": "Gateway generates new idempotency key for each retry attempt (B-static-0002: sha1(rid:attempt)[:8]). When requests timeout (B-logs-0001: 33 at 10:10:00), retries use different keys, bypassing idempotency protection and allowing multiple reserves for one order. Timeline fits precisely: drift onset coincides with gateway timeouts.",
+      "based_on": [
+       "B-static-0002",
+       "B-logs-0001",
+       "B-ops-0001"
+      ]
+     },
+     {
+      "name": "Idempotency-cache eviction lets replays reserve twice",
+      "status": "deprioritised",
+      "reason": "Log evidence contradicts the mechanism: B-logs-0003 found 0 of 171 evicted keys were reserved again. Timeline mismatch: evictions start at 10:15:20, five minutes after drift begins at 10:10:00. Mechanism is possible but not observed and cannot explain initial onset.",
+      "based_on": [
+       "B-static-0001",
+       "B-logs-0001",
+       "B-static-0003",
+       "B-logs-0003"
+      ]
+     },
+     {
+      "name": "orders v1.4.2 deploy introduced a bug",
+      "status": "refuted",
+      "reason": "Deploy timestamp (10:14:40) is 4.5 minutes after drift onset (10:10:00). The problem began before the deploy occurred, ruling it out as the initial cause.",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ]
+     },
+     {
+      "name": "Idempotency key hash collision causes duplicate reserves",
+      "status": "live",
+      "reason": "8 hex character keys (32 bits) could theoretically collide. With 64 cache entries and high load, collisions are mathematically possible. However, less plausible than retry mechanism given the precise correlation between timeouts and drift onset. Worth checking but lower priority.",
+      "based_on": [
+       "B-static-0002"
+      ]
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace the 33 timed-out requests end-to-end. Extract gateway timeout lines with request IDs. For each rid, compute expected keys for attempts 0,1,2 using sha1(rid:attempt)[:8]. Search inventory logs for reserve ok with each computed key. Count requests with multiple reserves and show line numbers.",
+      "separates": "Per-attempt key hypothesis (predicts 2-3 reserves per timed-out request) vs collision hypothesis (random duplicates) vs eviction hypothesis (unique keys)",
+      "predictions": "Leading hypothesis predicts most of the 33 timed-out requests show 2+ reserves with keys matching attempt 0, 1, or 2. Collision hypothesis predicts no systematic pattern. Eviction hypothesis predicts no duplicates for non-evicted keys."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Demonstrate 5+ end-to-end traces with merged.log line numbers. For each: show gateway timeout line, compute all attempt keys, find inventory reserve lines for each key, find orders confirm line if exists, calculate reserves minus confirms. Pick diverse SKUs and times.",
+      "separates": "Fulfills success criterion (5 end-to-end traces) and demonstrates the complete mechanism from timeout to drift",
+      "predictions": "Should find: gateway timeout \u2192 2-3 inventory reserves (different keys, same rid) \u2192 0-1 orders confirm for each traced request, with reserves > confirms producing the drift."
+     },
+     {
+      "lane": "static",
+      "experiment": "Read inventory.py reserve code path completely. Verify key check happens before every reserve increment. Check if any code path can reserve without consulting idempotency cache. Trace request flow from receipt to reserve to response.",
+      "separates": "Whether mechanism is 'retry generates new key allowing duplicate reserves' vs 'reserve bypasses key check in some code path'",
+      "predictions": "Leading hypothesis expects idempotency check before every reserve, with no bypass paths. Alternative expects a reserve path that skips the key check or checks it after incrementing."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Extract all reserve ok key= lines from inventory logs. Count occurrences of each key. List keys appearing 2+ times with line numbers, timestamps, and associated request context. Check if duplicate keys show retry pattern (same rid computed, different attempts).",
+      "separates": "Collision hypothesis (random duplicate keys) vs per-attempt hypothesis (duplicates from retry pattern) vs eviction hypothesis (unique keys except post-eviction)",
+      "predictions": "Per-attempt hypothesis expects duplicate keys to correlate with retry attempts. Collision hypothesis expects random duplicates. Eviction hypothesis expects nearly all unique keys."
+     }
+    ],
+    "not_pursuing": "Further eviction evidence collection - B-logs-0003 already checked 171 evictions exhaustively, finding zero re-reservations. Post-10:15 timeline focus - drift onset is at 10:10:00, five minutes before evictions begin, so evictions cannot be the initial cause. Deploy-related code review - timing rules out v1.4.2 deploy as the trigger since it occurred after drift started.",
+    "summary": "Dissenting from synthesis: B-static-0002 reveals gateway generates per-attempt idempotency keys (sha1(rid:attempt)[:8]), meaning each retry gets a different key. The 33 gateway timeouts at 10:10:00 (B-logs-0001) correlate precisely with drift onset, while evictions begin later (10:15:20) and show no re-reservation (B-logs-0003). Leading hypothesis is now retry-based duplicate reserves. Directive focuses on tracing the 33 timed-out requests to demonstrate multiple reserves per request and fulfill the 5-trace success criterion."
+   }
+  },
+  {
+   "id": "sonnet45/C1-S2-2",
+   "result": {
+    "chosen_from": "B-static-0002 (gateway key construction from rid:attempt)",
+    "hypotheses": [
+     {
+      "name": "Gateway retries increment attempt, generating different idempotency keys per retry",
+      "status": "leading",
+      "based_on": [
+       "B-static-0002",
+       "B-logs-0001",
+       "B-logs-0003"
+      ],
+      "reason": "B-static-0002 shows key=hash(rid:attempt). If retries increment attempt (0\u21921\u21922), each retry gets a unique key, bypassing inventory's idempotency protection. Explains why B-logs-0003 found no evicted keys reserved again (new keys, not replays) and why 33 timeouts correlate with drift onset."
+     },
+     {
+      "name": "Idempotency-cache eviction enables replays to reserve twice",
+      "status": "refuted",
+      "based_on": [
+       "B-static-0001",
+       "B-logs-0001",
+       "B-logs-0003"
+      ],
+      "reason": "B-logs-0003 directly refutes: checked all 171 evicted keys, zero were reserved again. No reserve replay lines in entire log. The eviction mechanism exists (B-static-0003) but is not causing the observed drift."
+     },
+     {
+      "name": "Orders v1.4.2 deploy at 10:14:40 introduces the drift mechanism",
+      "status": "deprioritised",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "reason": "Timing contradicts causation: drift first appears at 10:10:00 but deploy happens at 10:14:40 (4.5 minutes later). Deploy cannot explain onset unless timestamps are wrong or deploy was gradual."
+     },
+     {
+      "name": "Alternative code path in inventory bypasses idempotency check",
+      "status": "live",
+      "based_on": [],
+      "reason": "Needs verification. If a reserve path exists that doesn't check the idempotency cache (B-static-0001 line 26), it could allow duplicates. Low priority given retry-key hypothesis fits observations better."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "static",
+      "experiment": "Read gateway.py retry/timeout logic: how does attempt change on timeout and retry? Start value, increment behavior, relation to max_attempts=3 config. Compute example keys for r-0023 with attempts 0,1,2 using sha1(rid:attempt)[:8].",
+      "separates": "Retry-new-keys (attempt increments, different keys) vs eviction (same key reused) vs alternative-path (doesn't matter)",
+      "predictions": "Retry-new-keys: attempt starts at 0 or 1, increments on each retry, max 3 attempts means 3 different keys. Eviction: attempt doesn't change. Alternative-path: N/A."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Trace 5 requests from the 33 timed-out list (r-0023, r-0061, r-0065, r-0074, r-0084) end-to-end. For each: extract gateway lines with attempts, orders lines, inventory reserve lines. Show merged.log line numbers for all phases. Demonstrate whether one rid maps to multiple keys.",
+      "separates": "Retry-new-keys (one rid \u2192 multiple keys \u2192 multiple reserves) vs eviction (one rid \u2192 one key \u2192 one reserve) vs alternative-path (unclear)",
+      "predictions": "Retry-new-keys: each rid shows gateway attempts 1,2,3; inventory shows 2-3 different keys reserving same SKU. Eviction: same key twice (already ruled out). Others: single reserve per rid."
+     },
+     {
+      "lane": "logs",
+      "experiment": "For the 5 traced requests, compute expected keys using sha1(f'{rid}:{attempt}')[:8] for attempt values observed in gateway logs. Search merged.log for reserve ok key=<computed> and match. Count: how many computed keys exist as reserves?",
+      "separates": "Retry-new-keys (computed keys match reserves) vs alternative-path (no pattern) vs eviction (already refuted)",
+      "predictions": "Retry-new-keys: 80%+ of computed keys appear in reserve logs, demonstrating the key-generation mechanism. Alternative-path: random/no match. Eviction: N/A (refuted)."
+     },
+     {
+      "lane": "static",
+      "experiment": "Read inventory.py reserve function completely. Map every code path that increments the reserved count. Verify that the idempotency check at line 26 (if key in self.idem) is on ALL paths, with no bypass.",
+      "separates": "Alternative-path exists vs retry-based hypotheses (alternative-path irrelevant)",
+      "predictions": "Alternative-path: will find unchecked path. No alternative: single reserve path, idem check mandatory on all invocations."
+     }
+    ],
+    "not_pursuing": "Not pursuing cache eviction as the mechanism (refuted by B-logs-0003: no evicted key reserved again). Not pursuing orders v1.4.2 deploy as root cause (timing wrong: deploy after drift onset). Keeping alternative-path live for verification but low priority given retry-key hypothesis explains all observations.",
+    "dissent_funded": false,
+    "summary": "Round 2 refuted the eviction hypothesis (B-logs-0003: no evicted keys re-reserved). The actual mechanism likely involves gateway retries incrementing attempt, making each retry generate a different idempotency key per B-static-0002's hash(rid:attempt). Round 3 confirms retry logic, traces 5 requests end-to-end with line numbers (judge's gap), verifies computed keys match reserves, and rules out alternative paths."
+   }
+  },
+  {
+   "id": "sonnet45/C1-S1-3",
+   "result": {
+    "chosen_from": "B-static-0002, B-logs-0001, B-ops-0001",
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Implement key-to-rid mapping using B-static-0002's formula (sha1(rid:attempt)[:8]); match inventory key= to gateway rid + attempt",
+      "separates": "Prerequisite for all tracing; does not separate hypotheses",
+      "predictions": "Enables attribution of inventory reserves to specific gateway requests and attempt numbers"
+     },
+     {
+      "lane": "logs",
+      "experiment": "Trace 5+ requests from the 33 timed-out list (B-logs-0001) end-to-end with line numbers: gateway timeout \u2192 inventory reserves",
+      "separates": "Multi-attempt key hypothesis vs eviction hypothesis",
+      "predictions": "Multi-attempt: same rid shows 2-3 reserves with different keys (one per attempt), sequential, no eviction between. Eviction: same rid+key twice with eviction log between reserves"
+     },
+     {
+      "lane": "logs",
+      "experiment": "Count reserves per request-id (via mapping) vs reserves per unique key across all drift period",
+      "separates": "Single mechanism vs multiple mechanisms contributing",
+      "predictions": "Multi-attempt only: reserves/rid > 1, reserves/key \u2248 1. Eviction only: reserves/rid \u2248 1-2, reserves/key > 1. Both: reserves/rid > 1 AND reserves/key > 1"
+     },
+     {
+      "lane": "logs",
+      "experiment": "Search for any inventory key that appears in 2+ reserve events; check if eviction log for that key appears between the reserves",
+      "separates": "Whether eviction mechanism contributes at all vs only multi-attempt keys",
+      "predictions": "Eviction contributes: some keys reserved 2+ times with eviction logs between. Only multi-attempt: all keys reserved exactly once (different keys per attempt)"
+     }
+    ],
+    "dissent_funded": false,
+    "hypotheses": [
+     {
+      "name": "Multi-attempt idempotency keys cause double-reserves",
+      "status": "leading",
+      "reason": "B-static-0002 shows gateway key formula is hash(rid:attempt). When gateway retries after timeout (B-ops-0001: max 3 attempts), attempt increments (1\u21922\u21923), creating different keys for same request. Inventory treats each as unique, reserves multiple times. Timeline fits: timeouts start 10:06 (B-logs-0001), drift appears 10:10, before any evictions (10:15:20). Root cause candidate.",
+      "based_on": [
+       "B-static-0002",
+       "B-logs-0001",
+       "B-ops-0001"
+      ]
+     },
+     {
+      "name": "Idempotency cache eviction allows replays to reserve again",
+      "status": "live",
+      "reason": "B-static-0001 confirms 64-entry LRU can evict keys. B-logs-0001 shows 171 evictions starting 10:15:20. Could contribute to drift growth after cache fills. Timeline weakness: drift starts 10:10, evictions start 10:15 (5min gap). May be secondary mechanism or consequence of multi-attempt keys filling the cache, not root cause.",
+      "based_on": [
+       "B-static-0001",
+       "B-logs-0001",
+       "B-shared-0001"
+      ]
+     },
+     {
+      "name": "Orders v1.4.2 deploy caused the drift",
+      "status": "refuted",
+      "reason": "B-ops-0001 shows deploy at 10:14:40, but B-logs-0001 shows first drift at 10:10:00. Timeline excludes deploy as root cause (drift precedes deploy by 4m40s). HTTP client bump in changelog could affect post-deploy behavior but cannot explain initial onset.",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ]
+     }
+    ],
+    "not_pursuing": "Orders v1.4.2 deploy as root cause (timeline refutes it; deploy happens after drift onset). Not pursuing code fixes or external factors (out of scope). Not pursuing static-only analysis without log confirmation (judge requires end-to-end traces).",
+    "summary": "Round 1 established timeline and config but judge requires end-to-end traces. Critical insight from B-static-0002: gateway key formula includes attempt number, so retries create different keys. New leading hypothesis: multi-attempt keys cause double-reserves (fits timeline perfectly). Eviction remains live but secondary. Round 2 directive: solve key mapping (B-logs-0002), trace 5+ timed-out requests, test both mechanisms."
+   }
+  },
+  {
+   "id": "sonnet45/C1-S1-1",
+   "result": {
+    "chosen_from": "synthesis, judge verdict, shared board, lane boards",
+    "hypotheses": [
+     {
+      "name": "Idempotency-cache eviction allows duplicate reserves",
+      "based_on": [
+       "B-static-0001",
+       "B-logs-0001",
+       "B-shared-0001"
+      ],
+      "status": "leading",
+      "reason": "Static analysis confirms 64-entry LRU evicts oldest keys (services/inventory.py:26,45); logs show 171 evictions from 10:15:20 onwards with drift growing through same period. Mechanism: request replayed after key eviction reserves again. Static-only so far; needs log confirmation showing evicted keys being reserved again."
+     },
+     {
+      "name": "Orders v1.4.2 deploy increased latency, accelerating eviction rate",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "status": "live",
+      "reason": "Deploy at 10:14:40 falls between first drift (10:10:00) and heavy evictions (10:15:20). HTTP client bump could slow orders responses, causing more gateway timeouts and retries, filling cache faster and triggering evictions. Timeline rules out deploy as sole cause but supports it as accelerant."
+     },
+     {
+      "name": "Gateway retries reuse same idempotency key, enabling eviction scenario",
+      "based_on": [
+       "B-static-0002"
+      ],
+      "status": "live",
+      "reason": "Gateway builds key from rid:attempt (services/gateway.py:24). If retries increment attempt, each gets unique key (wouldn't trigger eviction bug). If retries reuse same attempt or orders/inventory retry internally, evicted keys could be hit again. B-static-0002 notes this 'may matter for retries' but didn't finish trace."
+     },
+     {
+      "name": "Early drift (10:10:00) has different root cause than sustained growth (10:15:20+)",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "First drift predates both deploy and evictions by 4-5 minutes. Could indicate one-off incident vs. systematic issue. Deprioritized because understanding sustained growth mechanism is higher priority for meeting success criteria."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Decode key\u2192rid mapping using gateway's short_hash(rid:attempt) formula and trace 5+ affected requests end-to-end. Select requests from timed-out list (r-0023, r-0102, r-0127, r-0154, r-0163, etc.) that span 10:15-10:20 window. For each: show gateway\u2192orders\u2192inventory flow with line numbers, including retry attempts.",
+      "separates": "Foundational for other experiments; will reveal whether retries use same or different attempt numbers",
+      "predictions": "If retries increment attempt: each retry gets unique key. If retries reuse attempt or internal retries exist: same key could hit evicted cache."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Demonstrate eviction\u2192re-reserve pattern for the 5+ traced requests. Show chronologically: (1) inventory reserves with key K at time T1, (2) key K evicted at T2, (3) inventory reserves again with same key K at T3 > T2. Quote merged.log line numbers for each step.",
+      "separates": "Leading hypothesis (eviction bug) from alternatives",
+      "predictions": "Leading hypothesis predicts at least 5 clear cases showing evicted-then-reused keys. Alternatives predict no such pattern or different duplication mechanism."
+     },
+     {
+      "lane": "static",
+      "experiment": "Trace retry and duplicate-request logic: when gateway times out, does retry increment attempt number (creating new key)? Check if orders or inventory services can also initiate retries/replays that reuse keys. Follow code path from gateway timeout through retry generation.",
+      "separates": "Whether eviction mechanism is even possible given retry behavior",
+      "predictions": "Leading hypothesis requires some code path that reuses idempotency keys. If all retries use unique keys, must find alternative source of duplicate requests with same keys."
+     },
+     {
+      "lane": "ops",
+      "experiment": "Extract orders service response latency from logs: time from gateway request to orders response. Compare distributions for 10:00-10:14 (pre-deploy) vs 10:15-10:30 (post-deploy). Also count timeout rate in each window.",
+      "separates": "Deploy-as-trigger hypothesis from eviction bug as pre-existing cause",
+      "predictions": "Deploy-trigger hypothesis predicts measurably higher latency and timeout rate after 10:14:40. Eviction-alone predicts no correlation with deploy timing, or only indirect effects."
+     }
+    ],
+    "not_pursuing": "Alternative idempotency mechanisms (only one check point per B-static-0001). Cache implementation bugs like race conditions or persistence issues (no evidence). Clock skew affecting eviction age (no evidence). The early-drift hypothesis is deprioritized because sustained growth (10:15:20+) directly addresses success criteria; can revisit if mechanism doesn't explain initial case.",
+    "summary": "Round 1 established timeline and config but lacks end-to-end traces. Leading hypothesis (idempotency eviction) is static-only and needs log confirmation. Directive prioritizes: (1) solving key\u2192rid mapping to enable tracing, (2) demonstrating eviction\u2192re-reserve pattern in 5+ cases, (3) clarifying retry logic to confirm mechanism viability, (4) testing deploy-timing correlation. Three hypotheses remain live; early-drift hypothesis deprioritized.",
+    "dissent_funded": false
+   }
+  },
+  {
+   "id": "sonnet45/C1-S1-2",
+   "result": {
+    "hypotheses": [
+     {
+      "name": "Cache eviction breaks idempotency protection",
+      "based_on": [
+       "B-static-0001",
+       "B-logs-0001",
+       "B-shared-0001"
+      ],
+      "status": "leading",
+      "reason": "Inventory's 64-entry LRU cache evicts old keys (services/inventory.py:26,45). Evictions start at 10:15:20, drift continues growing. Static mechanism confirmed: replayed requests after key eviction reserve again. Needs log confirmation showing evicted keys being reused for duplicate reserves."
+     },
+     {
+      "name": "orders v1.4.2 deploy introduces duplication",
+      "based_on": [
+       "B-ops-0001"
+      ],
+      "status": "live",
+      "reason": "Deployed at 10:14:40, five minutes before first eviction. Changelog mentions HTTP client bump. Timeline correlation exists but mechanism unclear. Could trigger duplicate inventory calls or higher retry load that fills cache."
+     },
+     {
+      "name": "Unknown retry mechanism",
+      "based_on": [],
+      "status": "deprioritised",
+      "reason": "No current evidence of unprotected retry paths in orders or inventory. Gateway retry logic (max_attempts=3) is already understood. Deprioritising until leading hypotheses are tested, but will search to rule out."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "static",
+      "experiment": "Verify key-building algorithm: confirm short_hash(f'{rid}:{attempt}') produces the 8-hex inventory keys. Then analyze orders v1.4.2: read changelog, diff, and HTTP client code for changes that could cause duplicate inventory calls or altered retry behavior.",
+      "separates": "Deploy hypothesis from coincidental timing",
+      "predictions": "Deploy cause: HTTP client change introduces retries or duplicate sends to inventory. Not deploy: change is benign/unrelated to inventory call patterns."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Using key algorithm from static, map inventory keys to gateway rids. Trace 5+ requests showing drift end-to-end (gateway rid/attempts \u2192 orders \u2192 inventory key/reserves). Document which requests have multiple inventory reserve events and their timing.",
+      "separates": "All hypotheses; establishes fundamental evidence",
+      "predictions": "Eviction: requests with duplicate reserves have keys that appear in eviction logs. Deploy: pattern changes at 10:14:40. Unknown: neither pattern fits."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Cross-reference traced requests against eviction events (merged.log 'idem evict' lines). For each duplicate reserve, check if its key was evicted within prior 5 minutes. Count fraction of duplicate reserves using recently-evicted keys.",
+      "separates": "Eviction hypothesis confirmation vs refutation",
+      "predictions": "Eviction confirmed: majority (>80%) of duplicate reserves reuse keys evicted within same timeframe. Eviction refuted: no correlation between evictions and duplicate reserves."
+     },
+     {
+      "lane": "skunkworks",
+      "experiment": "Search orders and inventory services for retry/backoff/timeout/circuit-breaker logic. For each instance found, verify either protected by idempotency check or doesn't call inventory.",
+      "separates": "Unknown mechanisms vs known gateway-only retries",
+      "predictions": "Other mechanisms exist: find unprotected retry code that calls inventory. Only gateway retries: all retry logic is in gateway or properly protected."
+     }
+    ],
+    "not_pursuing": "Not pursuing: (1) Gateway retry logic deep-dive - already understood from B-static-0002, mechanism is clear; (2) Performance/load analysis - out of manifest scope unless evidence points there; (3) Network/infrastructure issues - logs show application-level behavior; (4) Other config changes - B-ops-0001 covered all relevant config.",
+    "summary": "Round 1 established timeline and static mechanism; round 2 must solve key attribution (B-logs-0002 blocker), deliver end-to-end traces (judge requirement), and test the leading eviction hypothesis with log evidence. Deploy hypothesis needs mechanism analysis. Primary gap: no log confirmation of evicted keys being reused."
+   }
+  },
+  {
+   "id": "sonnet45/C1-S2-1",
+   "result": {
+    "chosen_from": "retry-keys, cache-eviction, deploy-slowdown, 4th ruled out",
+    "hypotheses": [
+     {
+      "name": "Retry attempts use different idempotency keys, causing multiple reservations per request",
+      "based_on": [
+       "B-static-0002",
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "status": "leading",
+      "reason": "Gateway builds keys as hash(rid:attempt) per B-static-0002. With max_attempts=3 (B-ops-0001), each retry gets a different key. Inventory treats each as independent and reserves stock for each attempt. Gateway confirms only once with orders, creating drift. Explains the 33 timed-out requests (B-logs-0001) driving drift without requiring cache eviction. Predicted pattern: multiple reserves per timed-out rid with keys for attempts 1, 2, 3."
+     },
+     {
+      "name": "Idempotency cache eviction allows duplicate reservations of the same key",
+      "based_on": [
+       "B-static-0001",
+       "B-logs-0001",
+       "B-shared-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "While eviction mechanism exists (B-static-0001) and timing correlates (B-logs-0001), B-logs-0003 found zero evicted keys being reserved again out of 171 evictions checked. No log evidence supports this as the drift mechanism. Eviction occurs but does not appear to cause the observed double-reservations."
+     },
+     {
+      "name": "Orders v1.4.2 deploy caused response slowdown leading to gateway timeouts",
+      "based_on": [
+       "B-ops-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "Deploy occurred at 10:14:40, but timeouts started at 10:06:12 and drift at 10:10:00 per B-logs-0001. Predates the issue by 8+ minutes, cannot be root cause. May have worsened an existing problem but timeline evidence refutes it as origin of drift."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Use key formula hash(rid:attempt) from B-static-0002 to compute expected keys for each attempt of the 33 timed-out requests. Trace at least 5 timed-out rids end-to-end through gateway (all attempts), inventory (all reserves), and orders (confirms) with merged.log line numbers. Count how many inventory reserves each rid triggered.",
+      "separates": "Retry-keys hypothesis vs cache-eviction hypothesis",
+      "predictions": "Retry-keys: multiple inventory reserves per timed-out rid, with keys matching hash(rid:1), hash(rid:2), hash(rid:3). Cache-eviction: would need same key reserved twice after eviction (B-logs-0003 found none). Normal case: single reserve per rid."
+     },
+     {
+      "lane": "static",
+      "experiment": "Trace whether orders or inventory services should deduplicate reservations by rid across retry attempts. Check if gateway, orders, or inventory maintains rid-level state to prevent multiple reserves from the same logical request despite different attempt numbers.",
+      "separates": "Architectural design (keys intentionally include attempt number to isolate retries) vs implementation gap (missing rid-level deduplication that should exist)",
+      "predictions": "Design: no rid-level dedup exists; system intentionally treats each attempt independently. Implementation gap: dedup code exists but is not called, is bypassed, or has a bug preventing it from working."
+     },
+     {
+      "lane": "skunkworks",
+      "experiment": "If logs confirms multiple reserves per timed-out rid, pinpoint the exact file:line locations where: (a) gateway generates attempt-specific keys, (b) inventory reserves without rid-aware dedup, (c) orders confirms without cross-attempt reconciliation. Document the mechanism that makes reserved exceed confirmed.",
+      "separates": "Completes root cause localization to file:line (success criterion)",
+      "predictions": "Key locations identified: gateway key generation likely services/gateway.py:24 (per B-static-0002), inventory reserve check likely services/inventory.py:26 (per B-static-0001), orders confirm flow in services/orders.py. Mechanism: each retry attempt reserves independently, only first successful confirm is recorded."
+     }
+    ],
+    "not_pursuing": "Not pursuing further evicted-key searches: B-logs-0003 already checked 171 evictions with zero re-reservations. Not pursuing deploy-timing hypothesis: drift and timeouts began 8+ minutes before v1.4.2 deploy at 10:14:40. Both hypotheses lack supporting evidence and do not fit the timeline.",
+    "summary": "Promoting retry-keys hypothesis to leading based on B-static-0002 (keys include attempt number) combined with timeout evidence. Deprioritizing cache-eviction hypothesis due to B-logs-0003 finding no evicted keys re-reserved. Critical path: use key formula to trace timed-out requests end-to-end, confirm multiple reserves per rid, and locate root cause to file:line per success criteria.",
+    "dissent_funded": true
+   }
+  },
+  {
+   "id": "sonnet45/C0-S0-1",
+   "result": {
+    "met": false,
+    "progress": true,
+    "gaps": [
+     "[logs] Trace 5+ timed-out requests end-to-end: compute idempotency keys for both attempts (sha1('rid:1')[:8], sha1('rid:2')[:8]), grep merged.log to show both inventory.reserve calls per request, demonstrating double-reservation mechanism",
+     "[logs] Log confirmation of retry hypothesis: pick requests like r-0023 (gateway timeout at L117), show attempt=1 with key X, timeout, attempt=2 with key Y, and both keys appearing in inventory reserve lines",
+     "[logs/shared] Rule out cache eviction as root cause: evictions start 10:15:20 (L271), drift appears 10:10:00 (L173); timing proves eviction cannot be the cause",
+     "[ops/shared] Rule out orders v1.4.2 deploy as root cause: deploy timestamp 10:14:40, drift onset 10:10:00; timeline rules out deploy as trigger"
+    ],
+    "summary": "Round 1 identified a strong hypothesis\u2014gateway retries generate new idempotency keys per attempt (gateway.py:24), causing double-reservation\u2014through static code analysis, and found 33 timed-out requests and favorable timeline evidence. However, all three success criteria remain unmet: the root cause is static-only at med confidence (B-shared-0001, B-static-0001) lacking log confirmation, no end-to-end request traces exist despite 33 candidates identified (B-logs-0001), and two rival explanations (cache eviction, deploy v1.4.2) have supporting timeline data (B-logs-0001, B-ops-0001) but no formal ruling. Substantial material progress made; next round must validate the mechanism with concrete log traces showing the double-reservation pattern."
+   }
+  },
+  {
+   "id": "sonnet45/C0-S0-2",
+   "result": {
+    "met": false,
+    "progress": true,
+    "gaps": [
+     "[logs] Trace 5+ timed-out requests end-to-end with merged.log line numbers showing double reservation via different idem keys",
+     "[logs] Rule out idempotency-cache eviction with timeline evidence (drift 10:10:00 precedes evictions 10:15:20)",
+     "[ops] Rule out orders v1.4.2 deploy with timeline evidence (drift 10:10:00 precedes deploy 10:14:40)"
+    ],
+    "summary": "Criteria not met. Leading hypothesis (gateway.py:24 generates new idem key per retry) identified at med confidence (B-shared-0001) but requires log confirmation. Timeline established (B-logs-0001) with 33 timed-out requests identified. Two rival explanations (cache eviction, v1.4.2 deploy) raised but not formally ruled out. Progress: hypothesis with file:line, timeline, and candidate requests for tracing."
+   }
+  },
+  {
+   "id": "sonnet45/C0-S0-3",
+   "result": {
+    "met": false,
+    "progress": true,
+    "gaps": [
+     "[logs] Trace at least 5 of the 33 timed-out requests end-to-end through merged.log, computing their idempotency keys (sha1(rid:1)[:8], sha1(rid:2)[:8]) and showing both reserves in inventory with line numbers",
+     "[logs] or [ops] Rule out orders v1.4.2 deploy: it deployed at 10:14:40 but drift started at 10:10:00 (B-logs-0001)",
+     "[logs] or [static] Rule out idempotency-cache eviction: evictions started at 10:15:20, after drift onset at 10:10:00"
+    ],
+    "summary": "Round 1 established a leading hypothesis (gateway retries use new idempotency keys, services/gateway.py:24) backed by static analysis (B-shared-0001, B-static-0001) and identified 33 timed-out requests (B-logs-0001). However, none of the three success criteria are met: (1) root cause needs log confirmation, not just static analysis; (2) no end-to-end request traces showing the mechanism; (3) rival explanations (cache eviction, v1.4.2 deploy) remain untested."
+   }
+  },
+  {
+   "id": "sonnet45/C1-S0-3",
+   "result": {
+    "chosen_from": "boards, synthesis, judge verdict",
+    "hypotheses": [
+     {
+      "name": "Gateway retries send new idempotency keys, causing double reserves",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001"
+      ],
+      "status": "leading",
+      "reason": "Code shows short_hash(f'{rid}:{attempt}') generates different keys per retry (gateway.py:24). Static analysis (med confidence) establishes: on timeout, uncancelled first call + retry with new key \u2192 multiple reserves with one confirm. Orders dedupes by rid (orders.py:27) confirming once, while inventory dedupes by key (inventory.py:26), allowing retries to reserve again. Static-only evidence; needs log confirmation via end-to-end traces."
+     },
+     {
+      "name": "Idempotency cache eviction causes drift",
+      "based_on": [
+       "B-logs-0001",
+       "B-ops-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "First eviction at 10:15:20 is 5+ minutes AFTER first drift at 10:10:00 (B-logs-0001). Cannot be primary cause given onset timing. Cache size 64 entries, 171 total evictions. Could be contributing factor if keys were evicted between retry attempts, but timeline evidence contradicts it as root cause."
+     },
+     {
+      "name": "orders v1.4.2 deploy introduces drift",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "status": "refuted",
+      "reason": "Deploy at 10:14:40 is 4+ minutes AFTER first drift at 10:10:00 (B-logs-0001). Timeline rules this out as cause. Changelog (http client bump, reconcile log wording) does not touch idempotency or reservation logic. Drift onset precedes deploy."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "For 5-10 of the 33 timed-out requests from B-logs-0001 (e.g., r-0023, r-0061, r-0065), compute idempotency keys using short_hash(f'{rid}:{attempt}') for attempts 1-3. Grep merged.log for inventory reserve lines matching each computed key (key=<8 hex>). Count reserves vs confirms per request. Provide line numbers for each reserve and confirm.",
+      "separates": "Leading hypothesis (retry keys) vs eviction/deploy hypotheses",
+      "predictions": "H1 (leading): Each timed-out request shows 2+ inventory reserves with different keys (one per attempt) but exactly 1 orders confirm. H2 (eviction): Would only show multiple reserves if keys evicted between attempts. H3 (deploy): Cannot explain pattern that started before deploy."
+     },
+     {
+      "lane": "logs",
+      "experiment": "For the 33 timed-out requests, compute their attempt-1 idempotency keys. Search merged.log for 'idem evict' lines matching those keys. Check if any eviction timestamp falls between the request's attempt-1 and attempt-2 (using timeout and retry timestamps from B-logs-0001).",
+      "separates": "Pure retry-key hypothesis vs retry+eviction combination",
+      "predictions": "Pure H1: No evictions of timed-out requests' attempt-1 keys between attempts; drift entirely from retry key differences. H1+H2 combination: Some attempt-1 keys evicted between retry attempts, making eviction a contributing factor."
+     },
+     {
+      "lane": "static",
+      "experiment": "Read gateway.py retry loop (around line 35), common.py timeout handling (around line 67). Verify: (1) timed-out upstream calls run to completion without cancellation, (2) attempt parameter increments on each retry iteration, (3) no code path reuses attempt-1's key on retry attempts.",
+      "separates": "Confirmed retry-key mechanism vs alternative static explanations",
+      "predictions": "H1: Confirms uncancelled timeouts allowing first call to complete, and confirms attempt counter increments ensuring new keys. Alternative: Might find key reuse logic, cancellation preventing double-reserve, or attempt counter staying at 1."
+     }
+    ],
+    "dissent_funded": false,
+    "not_pursuing": "Deploy hypothesis (orders v1.4.2 at 10:14:40): Timeline evidence refutes it as cause\u2014drift started at 10:10:00, 4+ minutes before deploy. No further investigation needed unless end-to-end traces reveal unexpected deploy-related behavior.",
+    "summary": "Round 1 established timeline (drift onset 10:10:00, first eviction 10:15:20, deploy 10:14:40) and code-level mechanism (gateway retries generate new idempotency keys). Deploy hypothesis refuted by timeline. Round 2 focuses on log confirmation of the leading retry-key hypothesis through end-to-end request traces (D1), testing whether eviction is a contributing factor (D2), and static verification of timeout/retry behavior (D3). Board entries: B-static-0001, B-logs-0001, B-ops-0001, B-shared-0001."
+   }
+  },
+  {
+   "id": "sonnet45/C1s-S0-1",
+   "result": {
+    "chosen_from": "B-shared-0001, B-static-0001, B-logs-0001, B-ops-0001",
+    "hypotheses": [
+     {
+      "name": "Gateway retries send new idempotency key per attempt, causing duplicate reserves",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001"
+      ],
+      "status": "leading",
+      "reason": "Code at services/gateway.py:24 includes attempt number in key hash. Static analysis shows retry loop generates new key each attempt, propagated through orders to inventory. HOWEVER: static-only, no log confirmation yet. Predicts distinct keys per retry but this hasn't been observed in logs. With 33 timeouts but initial drift of only +1, magnitude doesn't match if every timeout causes double reserve."
+     },
+     {
+      "name": "Idempotency cache eviction allows same-key replays to be treated as new reserves",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "status": "live",
+      "reason": "Cache limited to 64 entries (B-ops-0001) but 171 evictions occurred (B-logs-0001), indicating heavy churn. If a key is evicted before a retry arrives, even the SAME key would be treated as new by inventory.py:26 cache check. Eviction logs start at 10:15:20, but cache could have been full earlier without DEBUG logs. This could explain drift without requiring different keys per attempt."
+     },
+     {
+      "name": "Orders v1.4.2 deploy at 10:14:40 changed behavior causing or worsening drift",
+      "based_on": [
+       "B-ops-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "Timeline refutes this as initial cause: drift begins at 10:10:00, deploy happens at 10:14:40, 4+ minutes later. Cannot explain onset. Could potentially worsen existing drift but not the root cause. Changelog mentions only http client bump and reconcile log wording."
+     },
+     {
+      "name": "Timed-out calls complete anyway, creating duplicates independent of retry mechanism",
+      "based_on": [
+       "B-static-0001"
+      ],
+      "status": "live",
+      "reason": "services/common.py:67 shows timeouts don't cancel the callee. If first attempt times out at gateway but completes at inventory, AND a retry happens (whether with new or same key), both could reserve. This explains how timeouts lead to duplicates but doesn't specify whether keys differ. Could combine with either retry-new-key or cache-eviction mechanism."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace 5 specific timed-out requests end-to-end: for each (e.g., r-0023, r-0061), compute expected keys for attempt 1,2,3 using short_hash(f\"{rid}:{attempt}\"), grep merged.log for those exact keys in inventory reserve lines, verify whether duplicate reserves use different keys or identical keys",
+      "separates": "Retry-new-key vs cache-eviction: retry-new-key predicts distinct keys per rid (e.g., r-0023 reserves under key-attempt1 AND key-attempt2); cache-eviction predicts same key appearing multiple times OR finding no duplicate reserves with different keys",
+      "predictions": "If retry-new-key is correct: each timed-out rid should show 2+ inventory reserves with different key= values. If cache-eviction is correct: either same key appears multiple times, or duplicate reserves don't correlate with timeouts the way static analysis predicts"
+     },
+     {
+      "lane": "logs",
+      "experiment": "Search merged.log for duplicate reserves with identical idempotency keys: grep for inventory reserve lines, group by key=, identify any key= value that appears in multiple reserve operations. If found, extract timing and rid correlation",
+      "separates": "Directly tests retry-new-key hypothesis: if same-key duplicates exist, the retry-new-key mechanism cannot be the sole cause",
+      "predictions": "Retry-new-key predicts zero same-key duplicate reserves (every reserve has unique key). Cache-eviction predicts same-key duplicates exist when key was evicted then reused. Finding even one same-key duplicate would falsify retry-new-key as the complete explanation"
+     },
+     {
+      "lane": "logs",
+      "experiment": "Correlate drift timeline with eviction events: extract all reconcile drift timestamps and deltas, extract all idem evict timestamps, plot drift increases against eviction windows. Measure if drift jumps align with eviction activity or with timeout activity",
+      "separates": "Retry-new-key vs cache-eviction as primary mechanism: retry-new-key predicts drift correlates with timeout events (10:06+); cache-eviction predicts drift growth correlates with eviction activity (10:15+)",
+      "predictions": "If drift increases cluster around timeout periods (10:06-10:10), supports retry-new-key. If drift accelerates after 10:15:20 when evictions start, supports cache-eviction as significant factor"
+     },
+     {
+      "lane": "static",
+      "experiment": "Verify inventory deduplication beyond cache: check if inventory.py has any persistent dedup mechanism (database constraint, secondary check) that would prevent same-key reserves even after cache eviction. Review reserve() implementation for all guard conditions",
+      "separates": "Tests whether cache-eviction alone is sufficient: if no persistent dedup exists beyond the 64-entry cache, cache eviction becomes a viable complete explanation",
+      "predictions": "If inventory has only the in-memory cache (idem_cache_size 64) with no DB-level dedup, cache eviction can allow same-key duplicates. If there's a persistent guard, cache eviction alone cannot explain duplicates"
+     }
+    ],
+    "dissent_funded": true,
+    "not_pursuing": "Deep investigation of orders service internal state changes (drift manifests as inventory reserves exceeding order confirmations; the discrepancy is in inventory behavior). Network-level causes or infrastructure failures (logs show application-level timeouts and cache behavior; out of scope). The deploy hypothesis as root cause (timeline definitively rules it out: drift at 10:10:00 precedes deploy at 10:14:40 by 4+ minutes; could worsen drift but cannot explain onset)",
+    "summary": "The leading retry-new-key hypothesis rests entirely on static analysis with no log confirmation. As sceptic, I prioritize experiments to falsify it: searching for same-key duplicate reserves (would directly refute it), correlating drift with evictions vs timeouts (tests which mechanism dominates), and tracing whether actual retry behavior matches static predictions. The cache-eviction hypothesis (64 slots, 171 evictions) remains viable and could explain duplicates without requiring different keys per attempt. Critical gap: we have 33 timeouts but initial drift of only +1, suggesting the mechanism is more subtle than \"every timeout doubles reserves\"."
+   }
+  },
+  {
+   "id": "sonnet45/C1-S0-2",
+   "result": {
+    "chosen_from": "synthesis + boards + judge verdict",
+    "hypotheses": [
+     {
+      "name": "Gateway retries generate new idempotency keys, causing double reservations",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001",
+       "B-logs-0001"
+      ],
+      "status": "leading",
+      "reason": "Static analysis (B-static-0001) shows keys are sha1(rid:attempt)[:8], making each retry a new key to inventory. B-logs-0001 identifies 33 timed-out requests as cases. Mechanism is clear from code but lacks log confirmation - no end-to-end traces yet showing the predicted double-reserve, single-confirm pattern. This gap is what the judge flagged."
+     },
+     {
+      "name": "Idempotency cache eviction causes drift",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "Timeline evidence (B-logs-0001) argues against this as primary cause: drift first appears at 10:10:00, evictions start at 10:15:20 - a 5-minute gap. Cache has 64 entries (B-ops-0001), 171 evictions occurred. Evictions appear to be consequence of load, not root cause. Retaining to verify explicitly per evidence standard."
+     },
+     {
+      "name": "Orders v1.4.2 deployment triggers drift",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "Timeline strongly argues against causation: B-ops-0001 shows deploy at 10:14:40, B-logs-0001 shows drift starts at 10:10:00. Drift precedes deploy by 4+ minutes. Keeping deprioritised to confirm explicitly with log line numbers per evidence standard, then will move to refuted."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace 5-8 of the 33 timed-out requests end-to-end with merged.log line numbers: for each, find gateway timeout (attempt 1), retry (attempt 2), compute idempotency keys sha1(rid:1)[:8] and sha1(rid:2)[:8], grep for both reserve operations in inventory with those keys, and find the single confirm in orders.",
+      "separates": "Retry-new-key hypothesis vs alternatives (single reserve, key reuse, or uncompleted second reserve)",
+      "predictions": "Retry-new-key predicts each timed-out request shows 2 inventory reserves with distinct computed keys and 1 orders confirm. Alternatives predict different patterns: single reserve, same key on retry, or no second reserve completion."
+     },
+     {
+      "lane": "logs",
+      "experiment": "For all drift reports between 10:10:00 and 10:15:20 (before first eviction), trace each to its request and verify no evicted keys involved. Cross-reference drifted SKUs with the 33 timed-out request list to establish connection.",
+      "separates": "Cache eviction as cause vs eviction as consequence of load",
+      "predictions": "If eviction causes drift, early cases should involve evicted keys. If eviction is consequence, early drift involves only active keys from timeout-retry scenarios, with evictions starting later as cache fills."
+     },
+     {
+      "lane": "logs",
+      "experiment": "List all drift reports before 10:14:40 (deploy time) with line numbers. Count pre-deploy vs post-deploy drift occurrences to confirm drift precedes the deployment.",
+      "separates": "Deploy as cause vs deploy as coincidental or irrelevant to drift onset",
+      "predictions": "If deploy causes drift, zero drift reports before 10:14:40. If deploy is irrelevant, drift reports exist pre-deploy (timeline already suggests multiple reports starting 10:10:00)."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Check coverage: map each of the 33 timed-out requests to drift occurrences (may be delayed or aggregated by SKU). Search for any drift cases that don't trace back to the timeout list to test completeness.",
+      "separates": "Retry-new-key as complete root cause vs partial explanation requiring additional factors",
+      "predictions": "If retry-new-key is complete, all 33 timeouts map to drift and no drift without timeouts. If partial, some drift occurs from other causes (orders dedupe failure, inventory bug, etc)."
+     }
+    ],
+    "not_pursuing": "Further static code analysis - B-static-0001 already establishes the mechanism; additional static reading won't provide the log evidence required by success criteria. Config analysis beyond existing coverage - B-ops-0001 covered deploy and config; no other changes flagged. Infrastructure or network-level hypotheses - no board evidence points to these and they fall outside the provided scope (services/logs/config only).",
+    "summary": "Round 1 established timeline (drift 10:10, deploy 10:14, evictions 10:15) and static mechanism (retries create new keys via sha1(rid:attempt)[:8]) but lacks critical log confirmation. Judge flagged: no end-to-end traces, rival explanations not ruled in/out. Round 2 focuses logs lane on tracing the 33 timed-out requests to confirm double-reserve pattern and explicitly ruling out eviction/deploy per evidence standard."
+   }
+  },
+  {
+   "id": "sonnet45/C1-S0-1",
+   "result": {
+    "chosen_from": "B-static-0001, B-logs-0001, B-ops-0001, B-shared-0001",
+    "hypotheses": [
+     {
+      "name": "Gateway retry sends new idempotency key, causing double reserve",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001",
+       "B-logs-0001"
+      ],
+      "status": "leading",
+      "reason": "services/gateway.py:24 generates key=sha1(rid:attempt)[:8], so each retry carries a new key. Timeouts start 10:06:12, drift starts 10:10:00 (B-logs-0001). Static analysis shows: timed-out first call completes and reserves; retry with new key reserves again; orders dedupes by rid and confirms once. Mechanism identified to file:line but not yet confirmed in logs."
+     },
+     {
+      "name": "Idempotency cache eviction causes double reserves",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "status": "refuted",
+      "reason": "First eviction at 10:15:20, first drift at 10:10:00 (B-logs-0001:271, :173). Evictions are 5+ minutes too late to cause drift onset. Likely a symptom (cache overflow from retry keys flooding 64-entry cache) not a cause. Timing evidence refutes this as root cause."
+     },
+     {
+      "name": "Orders v1.4.2 deploy introduced the bug",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "status": "refuted",
+      "reason": "Deploy at 10:14:40 (B-ops-0001), first drift at 10:10:00 (B-logs-0001:173). Deploy is 4+ minutes after drift onset. Timing evidence refutes this; the bug predates the deploy. Additionally, static analysis shows the key-generation logic is in gateway.py:24, unchanged by the orders deploy."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace 5 timed-out requests end-to-end: for r-0023, r-0061, r-0065, r-0074, r-0084, compute key=sha1(f'{rid}:{attempt}')[:8] for each attempt (1,2,3); find in merged.log: gateway timeout line, all inventory reserve lines (by computed key), orders confirm line. Show the double-reserve pattern with line numbers.",
+      "separates": "Retry hypothesis vs. other double-reserve mechanisms (orders bug, inventory bug, race condition)",
+      "predictions": "Retry hypothesis predicts: each timed-out request shows 2+ inventory reserves with distinct keys (matching rid:1, rid:2) but only 1 orders confirm, creating +1 drift. Alternative mechanisms predict different signatures (same key twice, or no timeout correlation)."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Find all drift reports in window 10:10:00-10:14:39 (before deploy at 10:14:40, also before evictions at 10:15:20). Attribute each to request id or SKU. Count distinct drift events and show line numbers from merged.log.",
+      "separates": "Deploy hypothesis and eviction hypothesis vs. retry hypothesis",
+      "predictions": "Deploy/eviction hypotheses predict zero drift before 10:14:40 (deploy too late) and 10:15:20 (evictions too late). Retry hypothesis predicts multiple drift cases from 10:10:00 onward, correlating with the 33 timed-out requests starting 10:06:12."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Cross-check all 33 timed-out requests (from B-logs-0001) against drift reports: how many can be confirmed to have caused drift? Map drift SKUs back to request ids via reconcile logs. Check if drift count matches timeout count (33).",
+      "separates": "Retry as necessary-and-sufficient cause vs. retry-plus-other-factors",
+      "predictions": "Retry sufficient predicts: drift count approximates timeout count (33), and each drift traces to a timed-out request. Other factors predict: mismatch (extra drift from non-timeout requests, or timeouts without drift)."
+     }
+    ],
+    "dissent_funded": false,
+    "not_pursuing": "Not pursuing: (1) Bugs in orders.py or inventory.py service logic\u2014B-static-0001 shows orders dedupes by rid correctly (orders.py:27) and inventory only checks key in cache (inventory.py:26); static analysis sufficient. (2) Network or infrastructure root causes\u2014out of manifest scope (services not running, logs and source only). (3) Multiple concurrent root causes\u2014Occam's razor: the retry mechanism identified in B-static-0001 explains all timing evidence; no contradictions require additional causes. (4) Eviction or deploy as contributing factors\u2014timing refutes both (drift predates each by 4-5 min); these are ruled out, not deprioritised.",
+    "summary": "Round 1 identified the retry mechanism to file:line (gateway.py:24 generates key with attempt number, B-static-0001) and established timeline evidence (B-logs-0001) that refutes eviction and deploy hypotheses. Round 2 directive focuses logs lane on: (1) confirming the mechanism with 5 end-to-end traces using computed keys, (2) explicitly ruling out deploy/eviction with pre-10:14:40 drift evidence, (3) verifying retry is necessary and sufficient by mapping all 33 timeouts to drift. Success criteria gaps\u2014log confirmation and rival-explanation ruling\u2014will be closed."
+   }
+  },
+  {
+   "id": "sonnet45/C1s-S0-2",
+   "result": {
+    "chosen_from": "sceptic perspective on round 1 findings",
+    "hypotheses": [
+     {
+      "name": "Gateway retries generate new idempotency keys, causing inventory to double-reserve when first attempt times out but completes",
+      "status": "leading",
+      "reason": "Static analysis (B-static-0001) confirms gateway.py:24 computes key as sha1(f\"{rid}:{attempt}\")[:8], incrementing attempt on each retry. This means retry carries different key, inventory cannot deduplicate (only checks 'key in cache'), and timed-out-but-completing first call creates double reservation. Orders dedupes by rid so confirms once. However: evidence is static-only (med confidence). SCEPTIC concern: needs log validation that computed keys actually appear and correlate with double-reserves.",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001"
+      ]
+     },
+     {
+      "name": "Cache eviction enables re-reservation of legitimate requests",
+      "status": "live",
+      "reason": "B-logs-0001 reports 171 evictions vs 33 timeouts (5x ratio). With only 64-entry cache (B-ops-0001) and sustained traffic, legitimate keys are evicted, then same request arriving later finds key absent and reserves again. This could explain drift magnitude exceeding timeout count. Untested. SCEPTIC question: do evicted keys actually re-appear in later reserves?",
+      "based_on": [
+       "B-logs-0001",
+       "B-ops-0001"
+      ]
+     },
+     {
+      "name": "orders v1.4.2 deploy introduced or triggered the drift issue",
+      "status": "deprioritised",
+      "reason": "Deploy timestamp 10:14:40 (B-ops-0001) but first drift at 10:10:00 (B-logs-0001) \u2014 timeline contradicts this as initiating cause. Deploy changelog mentions 'http client bump' which could affect timeout behavior, but drift began 4 minutes 40 seconds earlier. Could contribute to drift acceleration post-deploy, but not root cause. Lower priority unless traces show behavior change at deploy boundary.",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ]
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace 5 timed-out requests end-to-end through gateway\u2192orders\u2192inventory (select from 33 listed in B-logs-0001, e.g., r-0023, r-0061, r-0065, r-0074, r-0084). For each: (1) compute expected keys sha1(f\"{rid}:1\")[:8], sha1(f\"{rid}:2\")[:8], sha1(f\"{rid}:3\")[:8]; (2) grep merged.log for rid and computed keys; (3) extract line numbers showing gateway timeout, gateway retry, inventory reserves with keys, orders confirm; (4) verify reserve count vs confirm count and key values match formula.",
+      "separates": "Leading hypothesis (retry-generates-new-key causing double-reserve) vs alternatives (key formula wrong, no double-reserve, or different mechanism). Directly answers B-logs-0002 (key-to-rid mapping).",
+      "predictions": "Leading predicts: each timed-out request shows 2+ inventory reserve lines with keys matching sha1(rid:attempt)[:8] formula for different attempts, plus 1 orders confirm. Alternative predicts: keys don't match formula, or 1 reserve per request, or reserves uncorrelated with timeouts."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Compute total drift magnitude: grep all 'reconcile drift' lines in merged.log, extract drift delta from each (e.g., 'drift=+1'), sum absolute values. Compare result to 33 (timeout count from B-logs-0001). If drift >> 33, indicates additional mechanism beyond timeouts alone.",
+      "separates": "Single-mechanism (timeouts only) vs multi-mechanism (timeouts + cache eviction or other). Tests whether 33 timeouts can explain observed drift.",
+      "predictions": "Timeout-only mechanism predicts drift magnitude \u2248 33-99 units (33 timeouts \u00d7 1-3 attempts each). Multi-mechanism predicts drift >> 99 (e.g., 200+), implicating eviction or other factor."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Cross-reference 171 cache evictions (B-logs-0001) with subsequent reserves: (1) extract all 'idem evict key=X' lines, collect evicted keys; (2) for each evicted key, search for later 'reserve' lines with same key= value; (3) count matches. If many evicted keys re-appear, eviction contributes to drift; if few, eviction is routine cache churn.",
+      "separates": "Eviction-as-contributing-cause vs eviction-as-normal-cache-management. Tests the live hypothesis that eviction enables re-reservation.",
+      "predictions": "Eviction-causes-drift predicts: significant fraction (e.g., 20%+) of evicted keys re-appear in later reserves. Normal-cache predicts: <5% re-appearance (once evicted, request is complete)."
+     },
+     {
+      "lane": "ops",
+      "experiment": "Partition merged.log by deploy timestamp 10:14:40 (B-ops-0001). For pre-deploy (10:06-10:14) and post-deploy (10:14-10:30) windows: count 'upstream timeout' events per minute and 'reconcile drift' deltas per minute. Compare rates. Check if pattern changes at deploy boundary.",
+      "separates": "Deploy-related behavior change vs pre-existing pattern. Rules deploy hypothesis (deprioritised) definitively in or out.",
+      "predictions": "Deploy-causation predicts: timeout rate or drift rate step-change at 10:14:40. Pre-existing-issue predicts: continuous or gradually-changing rates, no discontinuity at deploy time."
+     }
+    ],
+    "not_pursuing": "Deep static analysis of orders v1.4.2 code changes (http client bump in changelog). Timeline evidence contradicts this as root cause: drift appeared 10:10:00, deploy at 10:14:40 (B-ops-0001, B-logs-0001). Deploy may correlate with drift acceleration, but initiated after onset. Will only revisit if directive item 4 (pre/post-deploy rate comparison) shows significant behavior change at deploy boundary, or if end-to-end traces reveal anomalies aligned with 10:14:40 timestamp.",
+    "summary": "Round 1 established retry-with-new-key mechanism via static analysis (med confidence) and timeline facts (first timeout 10:06:12, first drift 10:10:00, 33 timeouts, 171 evictions). Judge correctly identifies critical gap: no end-to-end log traces yet. As SCEPTIC, directive prioritizes experiments to falsify leading hypothesis\u2014especially trace validation of computed key formula and double-reserve correlation\u2014and test alternative eviction mechanism (171 evictions vs 33 timeouts suggests possible contribution). Directive 1 directly tests whether sha1(rid:attempt) formula predicts observed keys; if not, hypothesis breaks."
+   }
+  },
+  {
+   "id": "sonnet45/C1s-S1-1",
+   "result": {
+    "chosen_from": "B-logs-0001, B-static-0001, B-static-0002, B-ops-0001",
+    "hypotheses": [
+     {
+      "name": "Gateway retries with different idempotency keys cause double reservations",
+      "status": "leading",
+      "reason": "Gateway builds keys as hash(rid:attempt) (B-static-0002), so each retry gets a unique key. Timeouts start 10:06:12 (B-logs-0001), drift appears 10:10:00 - timing fits. The 33 timed-out requests with max_attempts=3 (B-ops-0001) could each reserve multiple times without any eviction.",
+      "based_on": [
+       "B-static-0002",
+       "B-logs-0001",
+       "B-ops-0001"
+      ]
+     },
+     {
+      "name": "Idempotency-cache eviction lets replays reserve twice",
+      "status": "deprioritised",
+      "reason": "Timing contradiction: drift first appears at 10:10:00, but evictions don't start until 10:15:20 (B-logs-0001) - a 5-minute gap. If eviction were the mechanism, evictions must precede or coincide with drift onset, not follow it by 5 minutes. Evictions may exacerbate drift but cannot be the root cause.",
+      "based_on": [
+       "B-static-0001",
+       "B-logs-0001"
+      ]
+     },
+     {
+      "name": "orders v1.4.2 deploy introduced the root cause",
+      "status": "refuted",
+      "reason": "Deployment timestamp is 10:14:40 (B-ops-0001), but drift already appeared at 10:10:00 - 4.5 minutes earlier. The deploy may have worsened conditions but cannot be the initial cause. Timeouts also predate the deploy (first at 10:06:12).",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ]
+     },
+     {
+      "name": "Evictions are a symptom of high request volume, not a cause of drift",
+      "status": "live",
+      "reason": "171 evictions occurred (B-logs-0001) starting at 10:15:20, well after drift onset. With 64-entry cache and high traffic, evictions are expected. This explains why evictions correlate with drift growth (both driven by volume) without requiring eviction to cause the double reservations.",
+      "based_on": [
+       "B-logs-0001",
+       "B-static-0001"
+      ]
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace 5 requests from the early drift period (10:10-10:14, before widespread evictions) end-to-end with line numbers, focusing on the 33 timed-out request IDs listed in B-logs-0001. For each, count how many reserve operations inventory performed and which attempt numbers appeared.",
+      "separates": "Separates retry-key hypothesis from eviction hypothesis",
+      "predictions": "Retry-key hypothesis predicts: multiple reserves per request, each with different key (different attempt numbers), no eviction needed. Eviction hypothesis predicts: cannot explain drift in this period (no evictions yet)."
+     },
+     {
+      "lane": "static",
+      "experiment": "Trace the full flow of idempotency key from gateway.py:24 through to inventory.py:26 - confirm whether the attempt number in the key actually reaches inventory, or if orders service strips/transforms it. Check how gateway increments attempt and whether it waits for a response before retrying.",
+      "separates": "Confirms or refutes whether different attempts are seen as different requests by inventory",
+      "predictions": "Retry-key hypothesis requires: key with attempt=1, attempt=2, attempt=3 all reach inventory as distinct keys. If orders transforms the key (strips attempt), this hypothesis is falsified."
+     },
+     {
+      "lane": "logs",
+      "experiment": "For the 33 timed-out requests, determine how many attempts each made (grep for 'rid=<ID> attempt=' patterns). Calculate expected surplus reservations (if 10 requests made 2 attempts each, expect +10 drift; if 5 made 3 attempts, expect +10 drift). Compare to actual drift magnitude at 10:15.",
+      "separates": "Tests whether timeout-retry volume explains drift magnitude",
+      "predictions": "Retry-key hypothesis predicts: (sum of extra attempts across timed-out requests) \u2248 drift magnitude in 10:10-10:15 window. If actual drift greatly exceeds this, another mechanism is needed."
+     },
+     {
+      "lane": "static",
+      "experiment": "Check gateway retry logic for timing: does it wait for the full timeout (2000ms) before attempt=2, or does it detect failure earlier? Check if orders service has any logic that could propagate a reservation to inventory before timing out back to gateway.",
+      "separates": "Determines whether partial failures could cause reserves without orders confirmation",
+      "predictions": "If gateway timeout=2000ms but orders\u2192inventory succeeds quickly then orders times out later, inventory could reserve while orders never confirms. This would cause drift even on single attempts."
+     }
+    ],
+    "dissent_funded": true,
+    "not_pursuing": "Deep analysis of cache eviction mechanics and LRU implementation details - these may matter for drift growth after 10:15, but the 5-minute gap (drift at 10:10, evictions at 10:15:20) means eviction cannot be the root cause. Also not pursuing the orders v1.4.2 deploy as root cause - it postdates drift onset by 4.5 minutes, though it may have amplified the problem.",
+    "summary": "The leading hypothesis (eviction enables double reservations) is contradicted by timing: drift appears at 10:10:00 but evictions start at 10:15:20, a 5-minute gap. Rival hypothesis: gateway retry logic generates different idempotency keys per attempt (rid:attempt), so timeouts with max_attempts=3 cause multiple reservations without eviction. This fits the timeline: timeouts start 10:06, drift at 10:10. Round 2 directive focuses on tracing early drift cases and confirming key flow to test whether retry attempts explain the mechanism."
+   }
+  },
+  {
+   "id": "sonnet45/C1s-S1-3",
+   "result": {
+    "chosen_from": "sceptic seat analysis of round 1 boards",
+    "hypotheses": [
+     {
+      "name": "Gateway timeout retries use different attempt numbers \u2192 different idempotency keys \u2192 no replay protection \u2192 double reserve",
+      "status": "leading",
+      "reason": "Timeline fits perfectly: timeouts start 10:06:12, drift appears 10:10:00, no eviction needed. B-static-0002 shows keys built as sha1(f'{rid}:{attempt}')[:8], so attempt 1 vs attempt 2 produce different keys. If inventory reserves slowly but successfully on attempt 1, then gateway attempt 2 arrives with a different key and reserves again.",
+      "based_on": [
+       "B-static-0002",
+       "B-logs-0001"
+      ]
+     },
+     {
+      "name": "Idempotency-cache eviction causes drift",
+      "status": "deprioritised",
+      "reason": "Fatal timing contradiction: drift first appears 10:10:00, but evictions don't start until 10:15:20 \u2014 a 5+ minute gap where drift is happening WITHOUT evictions. May contribute after 10:15:20 but cannot be the primary cause. Static-only hypothesis (B-static-0001) lacks log confirmation that evicted keys were ever replayed.",
+      "based_on": [
+       "B-static-0001",
+       "B-logs-0001",
+       "B-shared-0001"
+      ]
+     },
+     {
+      "name": "Eviction contributes to drift growth after 10:15:20",
+      "status": "live",
+      "reason": "While eviction cannot explain the initial drift (timing), 171 evictions occur and drift continues growing. Eviction may be a secondary factor after 10:15:20, compounding the primary timeout-retry mechanism. Needs confirmation via post-eviction drift rate analysis.",
+      "based_on": [
+       "B-static-0001",
+       "B-logs-0001"
+      ]
+     },
+     {
+      "name": "Orders v1.4.2 deploy caused the drift",
+      "status": "refuted",
+      "reason": "Deploy at 10:14:40 is AFTER drift first appears at 10:10:00. Cannot be the root cause. The 'http client bump' might affect behavior after deployment but does not explain initial onset.",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ]
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "End-to-end trace of r-0023 (first timeout at 10:06:12): show all gateway attempts with their idempotency keys, follow each to inventory, count how many reserves occurred",
+      "separates": "Distinguishes timeout-retry (different keys per attempt) from eviction-replay (same key, evicted then reused)",
+      "predictions": "Timeout-retry hypothesis predicts: gateway attempt 1 and 2 produce different keys (e.g., hash of 'r-0023:1' vs 'r-0023:2'), both reach inventory, two reserves. Eviction hypothesis predicts: same key for both attempts, only one reserve unless key was evicted between them (impossible given evictions start 10:15:20)."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Backwards trace from first drift (10:10:00, SKU-5 reserved=13 confirmed=12): identify which 13 requests reserved SKU-5, find the one that reserved twice, check if it was a timed-out retry or had an evicted key",
+      "separates": "Confirms whether the FIRST drift case was caused by timeout-retry or eviction",
+      "predictions": "Timeout-retry predicts: the double-reserve request is one of the 33 timed-out requests, with multiple attempts visible in gateway logs before 10:10. Eviction predicts: the request has a key evicted before 10:10 (contradicts B-logs-0001 which shows first eviction at 10:15:20)."
+     },
+     {
+      "lane": "static",
+      "experiment": "Trace gateway retry logic in services/gateway.py: confirm that each attempt increments the attempt number and each attempt generates a distinct idempotency key via make_idem_key(rid, attempt), verify no deduplication across attempts",
+      "separates": "Confirms the mechanism of the leading hypothesis",
+      "predictions": "Leading hypothesis predicts: attempt counter increments on timeout/error (likely attempt=1,2,3 per max_attempts=3), each calls make_idem_key with different attempt value, producing different 8-char hashes. Alternative: gateway might reuse attempt=1 for all retries, or normalize keys somehow."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Post-eviction drift analysis: measure drift rate 10:10-10:15 (before evictions) vs 10:15-10:20 (after evictions start), find any reserves after 10:15:20 that reuse keys evicted in that window",
+      "separates": "Tests whether eviction contributes to drift growth or is coincidental",
+      "predictions": "Eviction contributes: drift rate accelerates after 10:15:20, can find reserves with previously-evicted keys. Eviction irrelevant: drift rate similar or declining, no reuse of evicted keys found."
+     }
+    ],
+    "not_pursuing": "Orders v1.4.2 deploy as primary cause (timing refutes it: deploy 10:14:40 is after drift onset 10:10:00). Config-based explanations (B-ops-0001 shows static config values, no runtime changes logged). Pursuing idempotency eviction as the leading hypothesis (timing contradiction: evictions start 5+ minutes after drift, so cannot be root cause, though may contribute later).",
+    "summary": "The leading hypothesis (eviction causes drift) has a critical timing problem: drift appears at 10:10:00 but evictions don't start until 10:15:20. Gateway timeout retries with different attempt numbers better fit the timeline (timeouts 10:06, drift 10:10) since different attempts produce different idempotency keys, bypassing replay protection. End-to-end traces of timed-out requests are needed to confirm the double-reserve mechanism and distinguish primary cause (timeout-retry) from possible secondary factor (eviction after 10:15).",
+    "dissent_funded": true
+   }
+  },
+  {
+   "id": "sonnet45/C1s-S1-2",
+   "result": {
+    "chosen_from": "B-static-0002, B-logs-0001, B-static-0001, B-ops-0001",
+    "hypotheses": [
+     {
+      "name": "Gateway retries with different idempotency keys bypass deduplication",
+      "based_on": [
+       "B-static-0002",
+       "B-logs-0001"
+      ],
+      "status": "leading",
+      "reason": "B-static-0002 shows gateway builds keys as sha1(rid:attempt), so attempts 1,2,3 get different keys. Each retry reserves again since inventory's idempotency cache sees a different key. Timeline fits: 33 timeouts start at 10:06:12, drift appears at 10:10:00 (plausible reconcile delay). No eviction needed. Explains drift before evictions start."
+     },
+     {
+      "name": "Idempotency-cache eviction lets replays reserve twice",
+      "based_on": [
+       "B-static-0001",
+       "B-logs-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "Timeline contradiction: drift first appears at 10:10:00 (B-logs-0001 line 173) but evictions don't start until 10:15:20 (line 271). Eviction cannot cause drift that appears 5+ minutes earlier. May be a secondary factor after 10:15:20 but not the root cause. Static-only hypothesis needs log confirmation of same key reserved twice after eviction."
+     },
+     {
+      "name": "orders v1.4.2 http client bump changes retry or timeout behavior",
+      "based_on": [
+       "B-ops-0001"
+      ],
+      "status": "live",
+      "reason": "Deployed at 10:14:40, after drift starts (10:10:00) so not the initial cause. But changelog mentions http client bump\u2014could change how orders calls inventory, potentially making retry problem worse. Timing is suspicious: deploys between first drift and first eviction. Needs investigation of what the client bump changed."
+     },
+     {
+      "name": "orders reconcile logic creates phantom drift",
+      "status": "refuted",
+      "reason": "Reconcile compares inventory.reserved vs orders.confirmed from their respective databases. B-ops-0001 notes v1.4.2 changed reconcile log wording, explaining why we see reports. Reconcile detects drift, doesn't create it. No evidence of reconcile bugs causing false positives."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace 5-10 of the 33 timed-out requests end-to-end (r-0023, r-0061, r-0065, r-0074, r-0084): gateway attempt logs \u2192 orders \u2192 inventory reserves. For each, compute sha1(rid:1)[:8], sha1(rid:2)[:8], sha1(rid:3)[:8] and check if inventory reserves match these keys. Include merged.log line numbers.",
+      "separates": "Retry-with-different-keys (leading) vs eviction (deprioritised)",
+      "predictions": "Retry hypothesis: each timed-out request shows 2-3 inventory reserves with keys matching sha1(rid:1), sha1(rid:2), sha1(rid:3). Eviction hypothesis: would show same key reserved twice, second reserve timestamp after that key's eviction timestamp."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Count drift accumulation in two windows: 10:10:00-10:15:19 (before first eviction) vs 10:15:20-10:20:00 (after evictions start). Grep for 'reconcile drift' lines, extract drift= values, sum per window.",
+      "separates": "Is eviction primary cause or secondary factor?",
+      "predictions": "Eviction is primary: drift rate spikes after 10:15:20. Eviction is secondary: drift already accumulating steadily before 10:15:20, may increase slightly after but not a step-change."
+     },
+     {
+      "lane": "static",
+      "experiment": "Read services/gateway.py retry logic in full: confirm each attempt generates a new key (B-static-0002 shows the formula); check if gateway waits for full timeout before retry or fails fast; verify max_attempts=3 retry loop. Cite file:line for key generation in retry context.",
+      "separates": "Whether gateway retry mechanism can cause double-reservation without eviction",
+      "predictions": "Retry hypothesis: each attempt gets new key, no deduplication between attempts, all 3 attempts reach inventory if all time out. Eviction hypothesis: would need retries to reuse same key or have separate dedup."
+     },
+     {
+      "lane": "ops",
+      "experiment": "Investigate orders v1.4.2 http client bump: if version control accessible, diff v1.4.1 vs v1.4.2 focusing on http client and inventory call path; otherwise document what deploy log/changelog says. Check if client change affects retry, timeout, or idempotency key propagation.",
+      "separates": "Whether v1.4.2 deploy timing (10:14:40) is coincidence or contributes to drift",
+      "predictions": "If client changes retry/timeout handling: could explain drift rate increase after 10:14:40. If only logging/wording changes: coincidence, not a cause."
+     }
+    ],
+    "dissent_funded": true,
+    "not_pursuing": "Eviction as primary root cause: the 5-minute gap between drift onset (10:10:00) and first eviction (10:15:20) is a fatal timeline contradiction. Eviction may amplify the problem after 10:15 but cannot explain the initial drift. Database or network-layer phantom reservations: no evidence on the boards; logs show actual reserve calls happening. The mechanism is in the application retry logic, not infrastructure.",
+    "summary": "Round 1 established timeline but revealed a fatal flaw in the leading hypothesis: drift appears at 10:10:00 but evictions don't start until 10:15:20. B-static-0002 (gateway keys include attempt number) suggests a simpler explanation: gateway retries with different keys bypass idempotency entirely. Next round: trace the 33 timed-out requests end-to-end to confirm multi-key reservations, measure drift rate before/after evictions to test causality, verify gateway retry key generation, and investigate the orders v1.4.2 http client bump."
+   }
+  },
+  {
+   "id": "sonnet45/C1s-S0-3",
+   "result": {
+    "chosen_from": "Round 1 boards, synthesis, judge verdicts, timing evidence",
+    "hypotheses": [
+     {
+      "name": "Gateway retries send new idempotency keys, causing double-reserves",
+      "status": "leading",
+      "based_on": [
+       "B-shared-0001",
+       "B-static-0001"
+      ],
+      "reason": "Static analysis shows key=sha1(f'{rid}:{attempt}')[:8], so retries get new keys (services/gateway.py:24). Timed-out calls aren't cancelled, so both attempts can reserve. Orders dedupes by rid and confirms once. Net: reserve twice, confirm once. BUT: critical timing gap challenges this. First timeout 10:06:12 (r-0023), first drift 10:10:00\u2014nearly 4 minutes later. If retries immediately double-reserve, drift should appear within seconds, not minutes. Static-only (med confidence), requires log validation. Timing gap unexplained."
+     },
+     {
+      "name": "Reconcile runs periodically, delaying drift detection",
+      "status": "live",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "reason": "The 4-minute gap between first timeout (10:06:12) and first drift report (10:10:00) suggests reconcile is periodic, not continuous. Drift could accumulate from early timeouts but only be logged when reconcile next runs. This would be compatible with the leading hypothesis but adds a delay mechanism. Needs code verification (when/how often does reconcile run in services/orders.py?) and log confirmation (do drift reports cluster at regular intervals?)."
+     },
+     {
+      "name": "Alternative mechanism: leading hypothesis is wrong",
+      "status": "live",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "reason": "Dissent-funded hypothesis. If end-to-end log traces show retries DON'T produce the predicted pattern (multiple reserves with different keys for same rid), then the static analysis missed something or the runtime behaves differently. The 4-minute gap and high eviction count (171 vs 33 timeouts) could indicate a different root cause entirely. Log validation will confirm or refute."
+     },
+     {
+      "name": "Cache eviction allows duplicate reserves",
+      "status": "deprioritised",
+      "based_on": [
+       "B-logs-0001",
+       "B-ops-0001"
+      ],
+      "reason": "First eviction at 10:15:20 is AFTER first drift at 10:10:00, ruling it out as the initial cause. Cache size 64 entries, 171 total evictions vs 33 timeouts suggests high cache pressure, but timing makes it a secondary factor at most, or a symptom rather than cause. Could contribute to later drift growth but not onset. Needs correlation analysis to rule definitively in or out."
+     },
+     {
+      "name": "orders v1.4.2 deploy caused or revealed drift",
+      "status": "refuted",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "reason": "Deploy at 10:14:40 is AFTER drift onset at 10:10:00. Cannot be the initial cause. Changelog mentions 'reconcile log wording' but drift logs exist before deploy (first at 10:10:00). Timing impossibility refutes this as primary explanation. May have affected later drift growth or logging but not onset."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "End-to-end trace of timed-out requests r-0023, r-0061, r-0065, r-0074, r-0084: compute idem key for each attempt (sha1(f'{rid}:{attempt}')[:8]); grep merged.log for each key; map all reserve and confirm events to timeline with line numbers; verify double-reserve pattern",
+      "separates": "Leading hypothesis vs alternative mechanism",
+      "predictions": "Leading: 2-3 reserve calls with different keys per timed-out rid, timeline shows timed-out attempt 1 completes + attempt 2/3 succeeds, both reserve. Alternative: same key reused across attempts, OR single reserve per rid, OR no correlation between timeouts and reserves."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Reconcile timing investigation: extract all 'reconcile drift' entries with timestamps; identify pattern (periodic intervals vs event-driven); read services/orders.py reconcile code to verify trigger mechanism; measure time deltas between reconcile runs",
+      "separates": "Periodic reconcile (explains gap) vs immediate detection (challenges leading hypothesis timing)",
+      "predictions": "Periodic: reconcile runs every ~5min or similar interval, explaining 10:06:12\u219210:10:00 gap; drift accumulates and is batch-reported. Immediate: reconcile runs continuously or on every confirm, no gap explanation, forces leading hypothesis to account for 4-minute delay differently."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Eviction-drift correlation: extract all 'idem evict' events with timestamps and keys; timeline evictions against drift increases; analyze which keys evicted (can we map to rids?); test if drift jumps correlate with eviction clusters",
+      "separates": "Eviction as cause vs symptom",
+      "predictions": "Cause: evictions precede or coincide with drift increases; evicted keys correlate with affected rids. Symptom: evictions follow drift; 171 evictions reflect independent cache churn unrelated to the 33 timed-out requests; no correlation."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Non-timeout drift analysis: identify all drift increases in reconcile logs; map timestamps; test if drift grows ONLY when timeouts occur or also during periods without timeouts; measure drift-per-timeout ratio over time",
+      "separates": "Timeout-exclusive causation vs additional mechanisms",
+      "predictions": "Timeout-only: every drift increase correlates with timeout events within reconcile period; 33 timeouts explain all drift. Additional: drift increases occur without corresponding timeouts, suggesting another contributing mechanism (eviction-reuse, race condition, other)."
+     }
+    ],
+    "not_pursuing": "Deploy hypothesis (refuted: drift at 10:10:00 precedes deploy at 10:14:40). Further static analysis (round 1 complete; round 2 must validate with logs per judge). Cache configuration tuning (out of scope per manifest: read-only investigation). Code fixes (out of scope: locate cause, not fix).",
+    "dissent_funded": true,
+    "summary": "The leading hypothesis (retry keys \u2192 double-reserves) rests on static analysis alone and faces a critical timing challenge: first timeout at 10:06:12 vs first drift at 10:10:00\u2014a 4-minute gap that contradicts immediate double-reserve prediction. Round 2 must validate the hypothesis with end-to-end log traces (5+ requests, compute keys, verify pattern) and explain the gap (reconcile timing?), or refute it entirely. Eviction (171 events) and deploy (10:14:40) timing rule them out as initial causes; eviction needs correlation analysis to rule definitively out. Dissent funded: logs may show a different pattern than static predicts."
+   }
+  },
+  {
+   "id": "sonnet45/C1s-S2-1",
+   "result": {
+    "chosen_from": "synthesis, boards, judge verdict",
+    "hypotheses": [
+     {
+      "name": "Idempotency-cache eviction lets replays reserve twice",
+      "status": "deprioritised",
+      "based_on": [
+       "B-shared-0001",
+       "B-static-0001",
+       "B-logs-0001"
+      ],
+      "reason": "Two contradictions: (1) B-logs-0003 shows 0 of 171 evicted keys were ever reserved again\u2014the hypothesis predicts this should happen but it does not; (2) Timeline mismatch\u2014drift starts at 10:10:00 but evictions start at 10:15:20, a 5-minute gap the hypothesis cannot explain. The mechanism exists in code but is not the cause."
+     },
+     {
+      "name": "orders v1.4.2 deploy introduced the bug",
+      "status": "refuted",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "reason": "Timeline refutes it: deploy at 10:14:40, but drift first reported at 10:10:00\u20144.5 minutes before the deploy. The drift begins before the change goes live."
+     },
+     {
+      "name": "Gateway timeouts trigger retries that reserve twice without idempotency protection",
+      "status": "leading",
+      "based_on": [
+       "B-logs-0001",
+       "B-static-0002",
+       "B-ops-0001"
+      ],
+      "reason": "Timeline fits: first timeout 10:06:12, first drift 10:10:00 (3m 48s later, plausible for retry backoff). Gateway configured for 3 attempts. B-static-0002 notes retry keys use rid:attempt; if each retry gets a distinct key, inventory would not recognize them as replays. 33 timed-out requests correlate with onset. Needs end-to-end trace confirmation."
+     },
+     {
+      "name": "Inventory state corruption or race condition unrelated to eviction",
+      "status": "live",
+      "based_on": [
+       "B-logs-0003"
+      ],
+      "reason": "Drift exists but does not match eviction patterns. If the mechanism were simpler than eviction-replay, it would explain why no evicted key is re-reserved. Kept live as fallback if retry hypothesis fails."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace 5+ of the 33 timed-out requests (r-0023, r-0061, r-0065, r-0074, r-0084) end-to-end: gateway attempts, orders reserve calls, inventory reserve lines. Count total reserves per request.",
+      "separates": "Retry hypothesis vs. eviction hypothesis vs. state-bug hypothesis",
+      "predictions": "Retry: each timed-out request shows 2-3 inventory reserves with different keys. Eviction: reserves with same key after eviction (none found yet). State-bug: reserves with same key, no eviction, no retry pattern."
+     },
+     {
+      "lane": "static",
+      "experiment": "Trace how gateway retry works: does each attempt (rid:1, rid:2, rid:3) generate a distinct idempotency key? Follow the code from gateway.py retry logic through to inventory reserve call.",
+      "separates": "Retry hypothesis from eviction hypothesis",
+      "predictions": "Retry: each attempt hashes rid:attempt, producing distinct keys; inventory sees them as separate requests. Eviction: all attempts use same key; only eviction allows double reserve."
+     },
+     {
+      "lane": "static",
+      "experiment": "Build the key-to-rid mapping: write a script that computes short_hash(rid:attempt) for every rid and attempt in the log, creating a lookup table from inventory keys to (rid, attempt) pairs.",
+      "separates": "Enables all end-to-end trace experiments",
+      "predictions": "With the mapping, logs can attribute inventory reserves to gateway requests, unblocking the end-to-end trace criterion."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Query reserves in the 10:06-10:15 window (after first timeout, before first eviction): count distinct keys reserved more than once. If >0, drift occurs without eviction.",
+      "separates": "Eviction hypothesis from all others",
+      "predictions": "Eviction: 0 double-reserves before 10:15:20. Retry or state-bug: >0 double-reserves, proving drift mechanism active before evictions begin."
+     }
+    ],
+    "dissent_funded": true,
+    "not_pursuing": "Further eviction investigation: timeline shows drift starts 5 minutes before evictions begin, and B-logs-0003 found 0 evicted keys re-reserved. The mechanism exists but is not the cause. Also not pursuing the deploy hypothesis: drift predates it by 4.5 minutes.",
+    "summary": "Leading hypothesis fails on two fronts: no evicted key was re-reserved (0/171), and drift starts 5 minutes before evictions begin. Retry hypothesis now leads: timeouts correlate with onset, and if each retry attempt generates a distinct idempotency key (rid:1, rid:2, rid:3), inventory would reserve multiple times without recognizing them as replays. Directive prioritizes end-to-end traces of timed-out requests and mapping keys to rids."
+   }
+  },
+  {
+   "id": "sonnet45/C2-S0-focus-1",
+   "result": {
+    "chosen_from": "council/focus perspective on round 1 boards and synthesis",
+    "hypotheses": [
+     {
+      "name": "Gateway retries send new idempotency keys, causing double reserves",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001"
+      ],
+      "status": "leading",
+      "reason": "Static code analysis (B-static-0001) shows key = sha1(f'{rid}:{attempt}')[:8], so retries increment attempt and get new keys; inventory checks only the key string, cannot detect replays; on timeout the callee isn't cancelled. Orders dedupes by rid and confirms once. Net: double reserve, single confirm. Med confidence as static-only; needs log confirmation with actual keys and line numbers."
+     },
+     {
+      "name": "Idempotency cache eviction causes drift",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "status": "refuted",
+      "reason": "B-logs-0001 establishes evictions start at 10:15:20 (line 271) but drift first appears at 10:10:00 (line 173). Evictions cannot cause drift that predates them by 5m20s. Timeline alone refutes this."
+     },
+     {
+      "name": "Orders v1.4.2 deploy introduces the bug",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "status": "refuted",
+      "reason": "B-ops-0001 shows deploy at 10:14:40; B-logs-0001 shows first timeout at 10:06:12 and first drift at 10:10:00. Deploy happens 8m28s after timeouts start and 4m40s after drift appears. Timeline rules it out as root cause."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace 5-7 of the 33 timed-out requests end-to-end with merged.log line numbers. For each rid (e.g. r-0023), compute keys sha1(f'{rid}:1')[:8] and sha1(f'{rid}:2')[:8], grep for these keys plus the rid. Show: gateway timeout line, inventory reserve with attempt-1 key (if exists), inventory reserve with attempt-2 key (if exists), orders confirm line (should be once).",
+      "separates": "Leading hypothesis (retry creates new key \u2192 double reserve) vs null (timeouts don't cause double reserves)",
+      "predictions": "Leading predicts: two inventory reserve lines per timed-out rid with different keys (key1 for attempt 1, key2 for attempt 2 after timeout), one orders confirm. Null predicts: at most one reserve per rid."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Post explicit contradictions for eviction and deploy hypotheses citing the timeline in B-logs-0001: eviction starts 10:15:20 (line 271), deploy at 10:14:40 per B-ops-0001, but drift at 10:10:00 (line 173) and first timeout at 10:06:12 (line 117).",
+      "separates": "Eviction/deploy hypotheses vs leading (retry-key) hypothesis",
+      "predictions": "Eviction hypothesis predicts drift onset \u226510:15:20; deploy hypothesis predicts onset \u226510:14:40. Observed: drift at 10:10:00, timeouts from 10:06:12. Both hypotheses predict drift after their event; timeline shows drift before."
+     }
+    ],
+    "dissent_funded": false,
+    "not_pursuing": "Do not pursue: (1) Code review of orders v1.4.2 changelog\u2014timeline rules out the deploy; (2) eviction algorithm internals\u2014evictions postdate drift onset; (3) further static analysis\u2014B-static-0001 covers the mechanism, logs must confirm it now; (4) broad log mining beyond the 33 known timeouts\u2014focusing on those is the direct path to confirming or refuting the leading hypothesis with minimal work.",
+    "summary": "The leading hypothesis can be settled immediately with log traces. B-logs-0001 provides 33 timed-out request ids; B-shared-0001 gives the key formula. Compute keys for 5-7 of those rids and grep merged.log for double reserves with different keys, single confirm. Timeline data already on boards refutes eviction (starts 5m20s after drift) and deploy (happens 4m40s after drift). Logs lane: trace requests with line numbers to meet success criteria. Board ids: B-static-0001, B-logs-0001, B-shared-0001, B-ops-0001."
+   }
+  },
+  {
+   "id": "sonnet45/C1s-S2-2",
+   "result": {
+    "chosen_from": "synthesis, shared board, lane boards",
+    "hypotheses": [
+     {
+      "name": "Idempotency-cache eviction lets replays reserve twice",
+      "based_on": [
+       "B-static-0001",
+       "B-logs-0001",
+       "B-shared-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "Timeline contradiction: drift onset 10:10:00, evictions start 10:15:20 (5:20 gap). B-logs-0003 shows 0 of 171 evicted keys were reserved again; no reserve replay lines exist. The hypothesis predicted replays after eviction; none observed. Cannot explain drift onset, which occurs before any eviction. Eviction may be a symptom, not the cause."
+     },
+     {
+      "name": "Each retry attempt generates a distinct idempotency key, causing duplicate reserves",
+      "based_on": [
+       "B-static-0002",
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "status": "leading",
+      "reason": "Gateway builds keys as hash(rid:attempt) per B-static-0002, so attempts 1,2,3 of request r-0023 yield different keys. Inventory deduplicates only by key (B-static-0001:26), not rid. Gateway retries up to 3 attempts (B-ops-0001). 33 timeouts (B-logs-0001) occurred starting 10:06:12, drift at 10:10:00\u2014timeline fits retries. Predicts: timed-out requests show 2-3 reserves under computed keys. Solves attribution problem (B-logs-0002) by computing keys from known rid:attempt pairs."
+     },
+     {
+      "name": "orders v1.4.2 deploy at 10:14:40 triggered the issue",
+      "based_on": [
+       "B-ops-0001"
+      ],
+      "status": "live",
+      "reason": "Deploy timestamp 10:14:40 is 4:40 after drift onset (10:10:00), so cannot explain onset. HTTP client bump might affect later drift growth or timeout patterns. Lower priority than retry-key hypothesis but not refuted. Must be ruled in or out per success criteria."
+     },
+     {
+      "name": "Unknown event in 10:06\u201310:10 window caused the drift",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "First timeout 10:06:12, first drift 10:10:00. Gap exists but retry-key hypothesis already explains the mechanism: timeouts trigger retries with new keys. No evidence of other events in logs. Subsumed by retry-key hypothesis unless that is refuted."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Compute idempotency keys for the 33 timed-out requests using sha1(rid:attempt)[:8] formula from B-static-0002; match computed keys to reserve ok lines in merged.log; show at least one timed-out request with 2+ distinct keys reserving",
+      "separates": "Retry-key hypothesis from eviction hypothesis. Solves B-logs-0002 attribution problem.",
+      "predictions": "Retry-key: r-0023 attempts 1,2,3 produce 3 different keys, all appearing in reserves. Eviction: no pattern; computed keys don't match reserves or appear only once per request."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Using computed keys from directive 1, trace 5+ timed-out requests end to end: gateway timeout lines for attempts 1-3 \u2192 inventory reserve ok with computed keys \u2192 orders confirmed line (if any). Cite all merged.log line numbers.",
+      "separates": "N/A\u2014success criterion. Demonstrates the mechanism at log level.",
+      "predictions": "Success: each trace shows same rid, multiple attempts, multiple reserves under different keys, but single (or zero) confirmation."
+     },
+     {
+      "lane": "static",
+      "experiment": "Read services/inventory.py reserve logic in full; confirm it checks only the idempotency key, not rid or order_id, before reserving. Cite file:line for the reserve call and any dedup checks.",
+      "separates": "Retry-key hypothesis from hidden rid-based deduplication.",
+      "predictions": "Retry-key: only key-based check at :26, no rid tracking. Hidden dedup: rid or order_id also checked before reserve."
+     },
+     {
+      "lane": "ops",
+      "experiment": "Examine the orders v1.4.2 changelog (http client bump): read the diff or changelog details; determine if the client change affects retry behavior, timeout handling, or idempotency key propagation.",
+      "separates": "Deploy hypothesis from retry-key hypothesis. Required to rule in/out per success criteria.",
+      "predictions": "Deploy caused it: client change broke idempotency propagation or retry logic at 10:14:40. Retry-key: deploy is coincidental; drift onset predates it by 4:40."
+     }
+    ],
+    "not_pursuing": "Further eviction analysis as the onset cause\u2014timeline refutes it (evictions start 5:20 after drift). Mining logs before 10:06:12\u2014onset is well-established. Timing-based attribution of reserves to requests\u2014key computation solves this.",
+    "summary": "The leading hypothesis (eviction) is contradicted by timeline and log evidence: drift begins 5:20 before evictions, and zero evicted keys are reserved again. A stronger hypothesis emerges: gateway builds keys from rid:attempt, so retries with different attempts bypass idempotency. Directive 1 computes keys to test this and solve attribution; directives 2-4 trace requests, confirm no rid dedup, and rule in/out the deploy.",
+    "dissent_funded": true
+   }
+  },
+  {
+   "id": "sonnet45/C2-S0-focus-3",
+   "result": {
+    "chosen_from": "B-static-0001, B-shared-0001, B-logs-0001, B-ops-0001",
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "For the 33 timed-out requests (B-logs-0001): compute idempotency keys using sha1(rid:attempt)[:8] for attempts 1,2,3; grep merged.log for each computed key in inventory lines; select 5 requests and trace end-to-end through gateway\u2192orders\u2192inventory with line numbers, showing whether the same rid appears with different keys causing duplicate reservations",
+      "separates": "Distinguishes retry-key hypothesis from alternative explanations for drift",
+      "predictions": "Retry-key hypothesis predicts same rid appears multiple times in inventory with different keys after gateway timeout, causing duplicate reserves. Alternative causes predict no such duplication pattern or duplication with same key."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Verify and document that first drift (10:10:00, line 173) precedes both first eviction (10:15:20, line 271) and the v1.4.2 deploy (10:14:40 per B-ops-0001), ruling out eviction and deploy as primary causes of initial drift onset",
+      "separates": "Rules out eviction and deploy as primary causes versus secondary effects or contributors",
+      "predictions": "If drift onset precedes both events, neither can be the primary cause of the initial drift. They might exacerbate or interact with the retry-key mechanism but cannot initiate the problem."
+     }
+    ],
+    "dissent_funded": false,
+    "hypotheses": [
+     {
+      "name": "Gateway retries send new idempotency key, causing duplicate inventory reservations",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001"
+      ],
+      "status": "leading",
+      "reason": "Static analysis shows key = sha1(rid:attempt)[:8] (services/gateway.py:24), so each retry attempt generates a different key. Inventory cannot recognize retries as replays. Static-only evidence (med confidence); needs log confirmation with traced requests showing duplicate reserves for same rid with different keys."
+     },
+     {
+      "name": "Idempotency cache eviction causes drift",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "status": "refuted",
+      "reason": "First drift appears at 10:10:00 (merged.log:173), but first eviction occurs at 10:15:20 (merged.log:271) \u2014 over 5 minutes later. Eviction cannot be the primary cause of drift that appeared before evictions began. May be secondary effect but not root cause."
+     },
+     {
+      "name": "Orders v1.4.2 deploy causes drift",
+      "based_on": [
+       "B-ops-0001"
+      ],
+      "status": "refuted",
+      "reason": "First drift appears at 10:10:00 (B-logs-0001), but orders v1.4.2 was deployed at 10:14:40 (B-ops-0001) \u2014 nearly 5 minutes later. Deploy cannot cause drift that appeared before deployment. The retry-key code mechanism may predate this deploy."
+     }
+    ],
+    "not_pursuing": "Static analysis of cache eviction logic: timing rules it out as primary cause. Deep analysis of v1.4.2 code changes: timing rules it out as primary cause. Additional timeline or config investigation: B-logs-0001 and B-ops-0001 provide sufficient temporal evidence; the gap is end-to-end trace confirmation of the retry-key mechanism.",
+    "summary": "Leading hypothesis (retry-key mechanism) can be settled with one focused logs task: compute keys from the 33 timed-out requests and trace 5 end-to-end showing duplicate reserves. Timing evidence from existing boards already refutes eviction and deploy as primary causes (both occur after drift onset). Board citations: B-static-0001, B-shared-0001, B-logs-0001, B-ops-0001."
+   }
+  },
+  {
+   "id": "sonnet45/C1s-S2-3",
+   "result": {
+    "chosen_from": "B-static-0002: key includes attempt, new hypothesis emerges",
+    "hypotheses": [
+     {
+      "name": "Retry-different-key: Each retry attempt generates a different idempotency key (rid:attempt), bypassing cache protection",
+      "status": "leading",
+      "based_on": [
+       "B-static-0002",
+       "B-logs-0001"
+      ],
+      "reason": "B-static-0002 shows gateway builds keys as hash(rid:attempt). With max_attempts=3, each retry gets a unique key that inventory treats as a new request. Timeline fits: timeouts start 10:06:12, drift appears 10:10:00 (before evictions at 10:15:20). Predicts multiple reserves per rid, one per attempt. Explains why idempotency cache fails to prevent duplicates."
+     },
+     {
+      "name": "Idempotency-cache eviction lets replays reserve twice",
+      "status": "refuted",
+      "based_on": [
+       "B-static-0001",
+       "B-logs-0001",
+       "B-logs-0003"
+      ],
+      "reason": "CONTRADICTED by evidence: (1) B-logs-0003 found 0/171 evicted keys were reserved again - the hypothesis's core prediction fails. (2) Timing contradiction: drift appeared at 10:10:00 but evictions started at 10:15:20, 5+ minutes later. Eviction cannot explain drift that preceded it. (3) Zero 'reserve replay' lines in entire log. Hypothesis falsified."
+     },
+     {
+      "name": "orders v1.4.2 deploy introduced duplicate calls via http client change",
+      "status": "deprioritised",
+      "based_on": [
+       "B-ops-0001"
+      ],
+      "reason": "Deployed at 10:14:40 with 'http client bump' changelog. However, timing weakens this: first drift at 10:10:00 preceded deploy by 4+ minutes. Could explain acceleration after 10:14:40 but not initial onset. Lower priority than retry-key hypothesis which explains the full timeline."
+     },
+     {
+      "name": "Attribution gap prevents us from seeing evidence already in logs",
+      "status": "live",
+      "based_on": [
+       "B-logs-0002",
+       "B-logs-0004"
+      ],
+      "reason": "B-logs-0002: cannot map inventory key= to rid. B-logs-0004: cannot attribute reserves by timing in bursts. The retry-key hypothesis is testable if we can compute hash(rid:attempt) and search for those keys - currently blocked by this gap. Resolving attribution could confirm or rule out retry-key immediately."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "static",
+      "experiment": "Trace full call path from one gateway retry through orders to inventory: when gateway retries rid=X with attempts 1,2,3, how many separate reserve calls reach inventory? Verify if each attempt generates a distinct reserve or if idempotency is applied earlier in the chain.",
+      "separates": "Retry-different-key vs eviction vs deploy hypotheses",
+      "predictions": "Retry-key: 2-3 reserve calls per timed-out request, one per attempt. Eviction: 1 reserve call (or 2 only if key evicted between calls). Deploy: behavior change should be in orders code, not gateway/inventory interaction."
+     },
+     {
+      "lane": "skunkworks",
+      "experiment": "Compute hash(rid:attempt) for 5-10 known timed-out requests (r-0023, r-0061, etc) using the short_hash function from common.py. Search merged.log for 'reserve ok key=<computed>' lines matching these keys. Report matches found.",
+      "separates": "Retry-key hypothesis vs attribution-gap hypothesis",
+      "predictions": "Retry-key: should find 2-3 matching reserve lines per timed-out rid (attempts 1,2,3). Attribution-gap: cannot compute correct keys or keys don't match reserves. If keys match, hypothesis is directly confirmed."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Split timeline at 10:14:40 (deploy). For each 5-minute window before and after, count: total reserves, reserves per SKU-5 request, reserve-to-confirm ratio. Look for pattern change at deploy boundary.",
+      "separates": "Deploy hypothesis vs retry-key hypothesis",
+      "predictions": "Deploy: metrics change noticeably after 10:14:40. Retry-key: consistent pattern throughout (ratio increases with timeout rate, not deploy). If pattern changes, deploy contributed; if consistent, retry-key is sufficient cause."
+     },
+     {
+      "lane": "logs",
+      "experiment": "For 10 timed-out requests with known timestamps, find ALL reserve operations in their lifecycle window (request start to final failure). Count reserves per request, group by SKU and qty to handle burst ambiguity.",
+      "separates": "Retry-key hypothesis (2-3 reserves/request) vs eviction (1-2 reserves) vs deploy (unpredictable)",
+      "predictions": "Retry-key: 2-3 reserves per timed-out request. Eviction: mostly 1 reserve, occasional 2 if evicted. Deploy: no clear per-request pattern. Finding 2-3 reserves consistently would strongly support retry-key."
+     }
+    ],
+    "not_pursuing": "Eviction mechanism investigation: already falsified by B-logs-0003 (0/171 evicted keys re-reserved) and timing (drift predates evictions by 5+ minutes). Further eviction-focused work would re-test what the boards already answer. Config-only analysis: ops completed this in r1. The critical gap is now understanding the retry-reserve mechanism and confirming the key-mapping hypothesis.",
+    "summary": "As SCEPTIC: the leading eviction hypothesis is refuted by B-logs-0003 (no evicted keys re-reserved) and timing (drift before evictions). New leading hypothesis from B-static-0002: retry attempts generate different keys (rid:attempt), each reserves independently. Next round should compute actual hashes to test this, trace retry\u2192reserve call paths in code, and count reserves per timed-out request in logs.",
+    "dissent_funded": true
+   }
+  },
+  {
+   "id": "sonnet45/C2-S0-focus-2",
+   "result": {
+    "chosen_from": "synthesis, judge verdict, 5 board entries",
+    "hypotheses": [
+     {
+      "name": "Retry-key mechanism: Gateway retries compute new idempotency keys per attempt, causing double-reservation when timeouts occur",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001",
+       "B-logs-0001"
+      ],
+      "status": "leading",
+      "reason": "Static analysis shows gateway.py:24 computes key as sha1(rid:attempt)[:8], making each retry carry a unique key to inventory. With 33 timeouts (B-logs-0001) and no call cancellation (B-static-0001), each timeout results in 2+ reserves but 1 confirm. Timeline aligns: first timeout 10:06:12, drift onset 10:10:00. Confidence: med (static-only; needs log confirmation)."
+     },
+     {
+      "name": "Deploy causes onset: orders v1.4.2 deploy at 10:14:40 triggered the drift",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "status": "refuted",
+      "reason": "Timeline refutes this: drift onset 10:10:00 (B-logs-0001 line 173), deploy 10:14:40 (B-ops-0001) - drift starts 4+ minutes before deploy. Impossible for deploy to cause earlier onset."
+     },
+     {
+      "name": "Eviction causes onset: Idempotency cache evictions at 10:15:20 triggered the drift",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "status": "refuted",
+      "reason": "Timeline refutes this: drift onset 10:10:00, first eviction 10:15:20 (B-logs-0001 line 271) - drift starts 5+ minutes before any eviction. Impossible for eviction to cause earlier onset."
+     },
+     {
+      "name": "Eviction amplifies drift: Cache evictions after 10:15:20 enable re-reservation of prior requests",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "Static analysis (B-static-0001) shows each retry has a different key (includes attempt number), so evicting one key doesn't enable the same request to reserve again with a different key. Eviction affects unrelated requests. Secondary to confirming the root cause mechanism."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace 5 timed-out requests end-to-end with computed keys: For 5 requests from the 33 timed-out list (r-0023, r-0061, r-0065, r-0074, r-0084), compute idempotency keys via sha1(rid:attempt)[:8] for attempts 1-3, grep merged.log for each computed key, trace each from gateway timeout log line \u2192 inventory reserve log lines \u2192 orders confirm log line, recording all line numbers and timestamps.",
+      "separates": "Retry-key hypothesis from all alternatives",
+      "predictions": "Retry-key predicts: 2+ inventory reserve lines per timed-out request with different keys matching sha1(rid:1)[:8] and sha1(rid:2)[:8], plus 1 orders confirm line. Alternative (same key) predicts: 1 reserve line per request."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Extract drift progression: grep 'reconcile drift' from merged.log, extract timestamp and drift value from each line, compute cumulative drift over time from 10:10:00 to 10:20:00.",
+      "separates": "Accumulating retry effect from one-time event or gradual leak",
+      "predictions": "Retry-key predicts: drift \u2248 cumulative timeout count at each timestamp (33 total timeouts \u2192 ~33 drift by end). One-time event predicts: sudden jump then plateau. Gradual leak predicts: steady linear growth unrelated to timeout count."
+     }
+    ],
+    "dissent_funded": false,
+    "not_pursuing": "Further investigation of deploy or eviction as onset causes. Timeline evidence (B-logs-0001) already refutes both: drift onset 10:10:00, deploy 10:14:40, first eviction 10:15:20. Neither can cause an effect that precedes it. Investigating these delays settling the leading hypothesis without addressing the judge's gaps. If retry-key mechanism is confirmed via end-to-end traces, it explains onset completely; deploy and eviction become irrelevant to root cause. The judge's ask to 'rule explanations in or out' is satisfied by the timeline facts already on the board.",
+    "summary": "Timeline evidence refutes deploy and eviction as onset causes. Retry-key hypothesis is the only explanation aligned with timeline and static analysis. Fastest settlement path: [logs] trace 5 timed-out requests with computed keys - this single experiment confirms/refutes the mechanism and satisfies end-to-end trace criteria. Directive items: B-shared-0001, B-logs-0001, B-ops-0001."
+   }
+  },
+  {
+   "id": "sonnet45/C2-S0-breadth-1",
+   "result": {
+    "chosen_from": "B-logs-0002, synthesis gaps, judge verdict",
+    "hypotheses": [
+     {
+      "name": "Gateway retries send distinct idempotency keys, causing duplicate reserves",
+      "status": "leading",
+      "reason": "Static analysis (B-static-0001) shows key=sha1(f'{rid}:{attempt}')[:8], changing per retry. Orders dedupes by rid, inventory by key. Explains mechanism but static-only, needs log confirmation. Timing anomaly unexplained: first timeout 10:06:12, first drift 10:10:00 (4-minute gap).",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001"
+      ]
+     },
+     {
+      "name": "Cache eviction of in-flight request keys allows duplicate reserves",
+      "status": "live",
+      "reason": "171 evictions starting 10:15:20 (B-logs-0001), cache size 64 (B-ops-0001). If a timed-out request's attempt-1 key is evicted before attempt-2 arrives, inventory treats it as new. Distinct from retry hypothesis. Completely untested.",
+      "based_on": [
+       "B-logs-0001",
+       "B-ops-0001"
+      ]
+     },
+     {
+      "name": "Cache overflow during high concurrency evicts keys of pending requests",
+      "status": "live",
+      "reason": "With 64 slots, max_attempts=3, and 33 timed-out requests generating multiple keys concurrently, cache could overflow. Evictions during request processing would break replay protection. Not explicitly tested; different mechanism from post-hoc eviction.",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ]
+     },
+     {
+      "name": "orders v1.4.2 deploy introduced the drift",
+      "status": "deprioritised",
+      "reason": "Deploy at 10:14:40 (B-ops-0001), but drift first appears 10:10:00 (B-logs-0001). Timing rules it out as initial cause. Could have exacerbated drift, but 33 timeouts predate it. Changelog mentions only http client bump and log wording.",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ]
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace 5+ timed-out requests end-to-end (gateway\u2192orders\u2192inventory) with merged.log line numbers. For each: compute key per attempt using sha1(f'{rid}:{attempt}')[:8], grep for those keys in inventory lines, count reserves vs confirms.",
+      "separates": "Retry hypothesis vs cache-based hypotheses",
+      "predictions": "Retry hypothesis predicts: each timed-out request shows 2+ inventory reserve lines (different keys, same rid), 1 orders confirm line. Eviction hypotheses predict: reserves appear only if their keys weren't evicted before the call arrived."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Test eviction correlation: extract all 171 evicted keys and timestamps from merged.log. For each evicted key, compute its (rid, attempt) from the inverse key formula if possible, or search backwards for the reserve that created it. Check whether evicted keys correspond to requests with pending retries.",
+      "separates": "Eviction hypothesis vs retry-only hypothesis",
+      "predictions": "Eviction hypothesis predicts: evicted keys belong to timed-out requests whose retries arrived after eviction, causing double-reserve. Retry-only predicts: evictions are incidental, drift exists before evictions start (10:15:20)."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Verify key computation and investigate timing gap: pick 3 requests from different time windows (10:06-10:08, 10:08-10:10, 10:10+). For each, compute expected keys, find them in logs, measure time between attempt-1 timeout and attempt-2 reserve, and between attempt-2 reserve and drift report.",
+      "separates": "Key formula verification and timing mechanism",
+      "predictions": "Key formula (B-shared-0001 answer to B-logs-0002) predicts: computed keys match inventory log lines exactly. Timing investigation reveals why 4-minute gap exists between first timeout (10:06:12) and first drift (10:10:00)."
+     },
+     {
+      "lane": "static",
+      "experiment": "Read inventory.py cache implementation: confirm it's LRU, document eviction policy, check if size is a hard limit or approximation, and whether reserve() can race with eviction (e.g., key checked, evicted before insert, then reinserted).",
+      "separates": "Cache overflow vs cache eviction mechanisms",
+      "predictions": "Cache overflow predicts: strict 64-entry limit with LRU eviction. Race-condition variant predicts: time-of-check-time-of-use gap between 'key in cache' and cache insert."
+     }
+    ],
+    "dissent_funded": true,
+    "not_pursuing": "Deploy hypothesis as initial cause: timing definitively rules it out (drift starts 4+ minutes before deploy). While v1.4.2 could theoretically have exacerbated existing drift, 33 timeouts occurred pre-deploy, and the changelog shows only benign changes (http client bump). Return to this only if log traces show a pattern change at 10:14:40.",
+    "summary": "Retry hypothesis is leading but static-only and has timing anomaly (4-min gap). Two cache-based hypotheses are completely untested despite 171 evictions and 64-slot cache under load. Judge requires end-to-end traces; none exist. Open question B-logs-0002 (key-to-rid mapping) has proposed answer but no verification. Direct logs to trace 5+ requests, test eviction correlation, verify key formula and timing; static to document cache behavior."
+   }
+  },
+  {
+   "id": "sonnet45/C2-S0-breadth-2",
+   "result": {
+    "chosen_from": "Synthesis board entries, judge gaps, open questions",
+    "hypotheses": [
+     {
+      "name": "Gateway retries send new idempotency key, causing double-reservation",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001"
+      ],
+      "status": "leading",
+      "reason": "Static code shows gateway.py:24 derives key from {rid}:{attempt}, so each retry gets a fresh key. Inventory.py:26 only checks this key for replay. Common.py:67 shows timed-out calls aren't cancelled. Orders.py:27 dedupes by rid and confirms once. Net: timeout+retry reserves twice, confirms once. Med confidence - static-only, needs log confirmation per judge gaps."
+     },
+     {
+      "name": "Idempotency cache eviction causes drift",
+      "based_on": [
+       "B-logs-0001",
+       "B-ops-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "B-logs-0001 shows evictions start at 10:15:20, but first drift is 10:10:00 - five minutes earlier. Eviction cannot be PRIMARY cause of drift onset. Cache size is 64 entries (B-ops-0001). Untested whether evictions accelerate drift after 10:15:20, but timeline contradicts it as root cause."
+     },
+     {
+      "name": "Orders v1.4.2 deploy triggers drift",
+      "based_on": [
+       "B-ops-0001",
+       "B-logs-0001"
+      ],
+      "status": "refuted",
+      "reason": "B-ops-0001 shows deploy at 10:14:40. B-logs-0001 shows first drift at 10:10:00 - four minutes forty seconds BEFORE deploy. Timeline evidence refutes this as root cause. Judge requires explicit ruling out with evidence."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Solve key-to-rid mapping (B-logs-0002): implement sha1(f'{rid}:{attempt}')[:8] formula from gateway.py:24 for the 33 timed-out rids, grep merged.log for computed keys to establish rid\u2194key correspondence",
+      "separates": "Enables all hypothesis testing by linking inventory reserves to gateway requests",
+      "predictions": "Inventory lines with computed keys will appear for timed-out rids. Keys for attempt=1 and attempt=2 of same rid will differ in inventory logs."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Trace 5 end-to-end flows from the 33 timed-out requests: document gateway timeout, retry, inventory reserves (with keys), and orders confirm for each, citing merged.log line numbers",
+      "separates": "Leading retry hypothesis vs other explanations; directly addresses judge's primary gap",
+      "predictions": "Leading hypothesis: each request shows (a) gateway timeout attempt=1, (b) retry attempt=2, (c) two inventory reserves different keys, (d) one orders confirm. Alternative: different pattern emerges."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Timeline analysis: count all drift reports before vs after 10:14:40 deploy; document first 10 drift events with timestamps and line numbers",
+      "separates": "Deploy-triggered vs retry-triggered drift; explicitly rules deploy in/out per judge requirement",
+      "predictions": "Deploy hypothesis: drift starts at/after 10:14:40. Retry hypothesis: drift starts at timeout onset 10:06-10:10, before deploy."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Measure drift rate in time buckets (10:06-10:10, 10:10-10:15, 10:15-10:20); count drift reports per 5-min window to test if evictions accelerate it",
+      "separates": "Eviction-amplified vs eviction-independent drift",
+      "predictions": "Eviction hypothesis: drift rate increases at/after 10:15:20 first eviction. Retry hypothesis: drift rate tracks timeout rate regardless of evictions."
+     }
+    ],
+    "dissent_funded": false,
+    "not_pursuing": "Orders v1.4.2 code changes deep dive - timeline refutes deploy as root cause. Gateway/orders config change investigation - B-ops-0001 shows no config changes at drift onset. Static analysis of eviction logic - eviction timing contradicts primary cause; need log evidence first. Multi-SKU analysis - goal is mechanism identification not impact quantification.",
+    "summary": "Critical gap: B-logs-0002 (key-to-rid mapping) blocks all end-to-end tracing - synthesis missed this open question. Judge requires 5 traced requests and ruling on eviction/deploy hypotheses. Timeline evidence already refutes deploy (drift 10:10 vs deploy 10:14:40) and deprioritises eviction (drift 10:10 vs evictions 10:15:20). Leading hypothesis needs log confirmation. All 4 directives target judge gaps using the 33 identified timed-out requests."
+   }
+  },
+  {
+   "id": "sonnet45/C2-S0-sceptic-1",
+   "result": {
+    "chosen_from": "synthesis + B-static-0001, B-logs-0001/0002, B-ops-0001",
+    "hypotheses": [
+     {
+      "name": "Retries send new idempotency keys causing duplicate reserves",
+      "status": "live",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001"
+      ],
+      "reason": "Static-only theory, never log-confirmed. Timing contradictions: first timeout 10:06:12 but first drift 10:10:00 (4min gap); 33 timeouts but drift starts at +1. Cannot trace without solving B-logs-0002. Falsifiable by tracing timeout requests end-to-end."
+     },
+     {
+      "name": "Cache eviction allows duplicate processing of replayed requests",
+      "status": "live",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "reason": "171 evictions (5x more than 33 timeouts) start at 10:15:20. 64-entry cache (B-ops-0001) could evict keys of in-flight requests, allowing later retries to pass the idem check. Untested hypothesis that explains the volume better than retries alone."
+     },
+     {
+      "name": "Orders v1.4.2 deploy changed timeout or retry behavior",
+      "status": "live",
+      "based_on": [
+       "B-ops-0001"
+      ],
+      "reason": "Deploy at 10:14:40 sits between drift onset (10:10:00) and eviction onset (10:15:20). Changelog mentions 'http client bump' - could have altered retry logic, timeout handling, or idempotency key generation in orders service. Untested."
+     },
+     {
+      "name": "Timeout-independent mechanism causes drift before 10:10",
+      "status": "live",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "reason": "If retry-on-timeout causes drift, first drift should appear near first timeout (10:06:12), not 4 minutes later. The gap suggests a different mechanism or trigger condition. Testable by finding non-timeout requests that drifted in the 10:06-10:10 window."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Solve B-logs-0002 (map key to rid), then trace first 5 timeout requests (r-0023, r-0061, r-0065, r-0074, r-0084) end-to-end with line numbers showing gateway, orders, and all inventory reserve calls with their keys",
+      "separates": "Retry-new-key hypothesis vs. other causes",
+      "predictions": "Retry hypothesis: each shows 2+ inventory reserves with different keys (attempt 1, 2, etc). Alternative: 1 reserve, or multiple reserves with same key, or reserves not correlated with timeouts"
+     },
+     {
+      "lane": "logs",
+      "experiment": "Search 10:06:12-10:10:00 window for requests that contributed to drift but did NOT timeout at gateway - grep for reserve/confirm pairs where reserved > confirmed but no 'upstream timeout' for that rid",
+      "separates": "Timeout-dependent (retry) vs timeout-independent mechanisms",
+      "predictions": "Retry hypothesis: zero non-timeout drifted requests. Alternative: finding drifted requests without timeouts breaks the retry theory and points to eviction or other cause"
+     },
+     {
+      "lane": "logs",
+      "experiment": "Trace 5 requests whose keys appear in 'idem evict' lines, checking if those same keys appear in later reserve calls (potential re-reserve after eviction)",
+      "separates": "Eviction hypothesis vs retry hypothesis",
+      "predictions": "Eviction hypothesis: evicted keys reappear in reserve calls, showing cache miss allows duplicate. Retry hypothesis: evictions are noise, no correlation with reserves"
+     },
+     {
+      "lane": "static",
+      "experiment": "Examine orders v1.4.2 changelog and diff - what did the 'http client bump' change in timeout handling, retry logic, or how keys are passed/generated",
+      "separates": "Deploy-introduced behavior change vs pre-existing bug",
+      "predictions": "Deploy hypothesis: client change altered retry/timeout/key behavior in orders. Alternative: change is cosmetic or unrelated to the mechanism"
+     }
+    ],
+    "dissent_funded": true,
+    "not_pursuing": "Further static code analysis without log confirmation. The retry-new-key mechanism is plausible from source but remains static-only theory. We have read gateway.py:24, inventory.py:26, orders.py:18-27, common.py:67 - no more code reading will resolve the timing contradictions or volume mismatch. The next round must produce end-to-end log traces or the leading hypothesis stays unconfirmed conjecture.",
+    "summary": "Leading hypothesis has critical gaps: 4-minute delay between first timeout and first drift, volume mismatch (33 timeouts vs +1 drift), and zero log confirmation. Eviction volume (171) exceeds timeouts (33) 5x. Deploy timing is suspicious. Directive prioritizes breaking the retry theory with empirical traces, testing the eviction alternative, and examining the deploy's actual changes."
+   }
+  },
+  {
+   "id": "sonnet45/C2-S0-breadth-3",
+   "result": {
+    "chosen_from": "B-logs-0002, judge gaps, synthesis acknowledgments",
+    "hypotheses": [
+     {
+      "name": "Gateway retries send new idempotency keys, causing double-reservation",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001"
+      ],
+      "status": "leading",
+      "reason": "Static analysis (B-static-0001) shows key=sha1(rid:attempt)[:8] in gateway.py:24, so each retry generates a new key. Timeout doesn't cancel upstream call (common.py:67). Orders dedupes by rid and confirms once (orders.py:27). Net: double reserve, single confirm. Strong static evidence (med confidence), but needs log confirmation with end-to-end traces as B-shared-0001 explicitly acknowledges."
+     },
+     {
+      "name": "Idempotency cache eviction causes drift",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "Timing contradiction in B-logs-0001: drift starts at 10:10:00 but evictions don't begin until 10:15:20 (5+ minute gap). Evictions cannot cause drift that predates them. While 171 evictions did occur, they appear to be consequence not cause. Manifest requires explicit ruling out despite timing evidence against it."
+     },
+     {
+      "name": "orders v1.4.2 deploy triggered the drift",
+      "based_on": [
+       "B-ops-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "Timing contradiction in B-ops-0001: deploy at 10:14:40, drift starts at 10:10:00 (4+ minute gap). Deploy cannot trigger pre-existing drift. However, manifest requires this rival explanation be explicitly ruled out with evidence, not just timing inference."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Compute idempotency keys for the 33 timed-out requests from B-logs-0001 using key=sha1(rid:attempt)[:8], grep merged.log for these keys to find inventory reserve lines, and trace at least 5 requests end-to-end showing gateway timeout (attempt 1), retry (attempt 2), two distinct inventory reserves, and one orders confirm.",
+      "separates": "Retry-key hypothesis vs single-reserve alternatives",
+      "predictions": "Retry hypothesis: 2 inventory reserve lines per timed-out request with different keys (attempt 1 and 2). Alternatives: 1 reserve per request."
+     },
+     {
+      "lane": "logs",
+      "experiment": "For drift cases in the 10:10:00-10:15:20 window (before first eviction), identify their idempotency keys and check whether any eviction records exist for those keys. Compare drift magnitude before vs during eviction period.",
+      "separates": "Eviction-causes-drift vs retry-causes-drift",
+      "predictions": "Eviction hypothesis: early drift cases show eviction records. Retry hypothesis: early drift cases have no evictions, and evictions are uncorrelated with drift."
+     },
+     {
+      "lane": "ops",
+      "experiment": "Compare drift pattern, frequency, and affected request characteristics before 10:14:40 (pre-deploy) vs after 10:14:40 (post-deploy). Check if the v1.4.2 changelog items (http client bump, reconcile log wording) could affect reservation behavior.",
+      "separates": "Deploy-triggered vs pre-existing mechanism",
+      "predictions": "Deploy-triggered: drift pattern changes at 10:14:40 boundary. Pre-existing: consistent drift pattern before and after, and changelog items are cosmetic/unrelated to reservation logic."
+     },
+     {
+      "lane": "logs",
+      "experiment": "For the 5+ traced requests, count total drift magnitude and compare to the 33 timeout count. Check if any drift cases exist without corresponding timeouts in the same time window.",
+      "separates": "Retry-is-sufficient vs retry-plus-other-causes",
+      "predictions": "Retry-sufficient: drift magnitude \u2248 timeout count, all drift cases have corresponding timeouts. Additional causes: drift > timeout count, or drift cases without timeouts."
+     }
+    ],
+    "not_pursuing": "Deep static analysis of other code paths (the mechanism is identified in B-static-0001; log confirmation is more valuable), historical analysis beyond March 2 (timeline is established), testing with running services (scope says work from source/config/logs only), and fixing the code (out of manifest scope).",
+    "summary": "B-logs-0002 remains unanswered despite synthesis acknowledging it. Judge gaps require end-to-end traces and ruling out rival explanations. All four directives address these: directive 1 directly answers B-logs-0002 and provides the 5+ traces; directives 2-3 explicitly rule out eviction and deploy per manifest requirements; directive 4 tests sufficiency of the leading hypothesis.",
+    "dissent_funded": false
+   }
+  },
+  {
+   "id": "sonnet45/C2-S0-sceptic-2",
+   "result": {
+    "chosen_from": "synthesis, B-shared-0001, B-logs-0001, judge r1 verdict",
+    "hypotheses": [
+     {
+      "name": "Gateway retries create new idempotency keys, causing duplicate reservations",
+      "based_on": [
+       "B-static-0001",
+       "B-shared-0001"
+      ],
+      "status": "leading",
+      "reason": "Static analysis shows gateway.py:24 computes key as short_hash(f\"{rid}:{attempt}\"), so retries get new keys inventory cannot recognize. However: NO log confirmation\u2014static-only at med confidence. Key formula unverified in practice (B-logs-0002 open). Critical timing anomaly: first timeout 10:06:12 but drift not until 10:10:00\u20144-minute gap unexplained. No evidence retries actually occurred after the 33 timeouts."
+     },
+     {
+      "name": "Cache eviction allows same key to be processed twice",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "status": "live",
+      "reason": "171 cache evictions recorded starting 10:15:20. With 64-entry cache, evicted keys could be reprocessed if requests repeat. Untested: whether evicted keys reappear in logs post-eviction. Timing mismatch: evictions start AFTER drift onset (10:10:00), so cannot explain initial drift but could explain growth."
+     },
+     {
+      "name": "Orders v1.4.2 deploy changed timeout/retry behavior",
+      "based_on": [
+       "B-ops-0001"
+      ],
+      "status": "deprioritised",
+      "reason": "Deploy at 10:14:40 is AFTER drift onset at 10:10:00, ruling it out as initial cause. Could have accelerated drift if it changed retry/timeout logic, but timing makes it unlikely primary mechanism. Low priority given contradiction with drift onset."
+     },
+     {
+      "name": "Drift detection is periodic, creating apparent delay from actual causation",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "status": "live",
+      "reason": "First timeout 10:06:12, first drift logged 10:10:00\u2014nearly 4-minute gap. Possible explanations: (a) reconciliation runs periodically, detecting pre-existing drift at 10:10; (b) retry mechanism has inherent delay; (c) timeout unrelated to that drift. Needs investigation of reconciliation timing and whether drift existed before detection."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace r-0023 end-to-end with computed keys: calculate short_hash(f\"r-0023:{attempt}\") for attempt=1,2,3; grep merged.log for those exact keys in inventory lines; count reserves and timestamps.",
+      "separates": "Retry-with-new-keys vs no-retry vs same-key-reused",
+      "predictions": "Retry hypothesis: 2+ reserves with different computed keys. No-retry: single reserve or no attempt=2 found. Same-key: multiple reserves with identical key."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Verify retries occurred: grep merged.log for \"attempt=2\" and \"attempt=3\" in gateway logs for the 33 timed-out request IDs; count how many actually retried vs only timed out on attempt=1.",
+      "separates": "Retry-happened vs timeout-without-retry",
+      "predictions": "Retry hypothesis: most/all 33 requests show attempt=2 logs. Timeout-without-retry: few or zero retry attempt logs found."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Test eviction as alternative: extract keys from 171 eviction events; for each, search merged.log for that key before AND after eviction time; identify if any evicted key appears post-eviction (indicates reprocessing).",
+      "separates": "Eviction-enables-duplicate vs independent-new-keys",
+      "predictions": "Eviction hypothesis: evicted keys appear multiple times spanning eviction. New-key hypothesis: evicted keys only appear pre-eviction, never reused."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Explain 4-minute gap: search for all r-0023 activity between 10:06:12 and 10:10:00; determine reconciliation schedule (periodic interval? event-triggered?); check if drift existed before 10:10:00 detection.",
+      "separates": "Immediate-effect vs periodic-detection vs unrelated-timeout",
+      "predictions": "Immediate: drift logged shortly after retry completes. Periodic: reconciliation runs every N minutes. Unrelated: no connection between r-0023 retry and first drift."
+     }
+    ],
+    "not_pursuing": "Further static code analysis\u2014static lane already traced retry and timeout logic through the call chain. Deploy hypothesis as primary cause\u2014timing contradiction (10:14:40 deploy after 10:10:00 drift onset) rules it out for initial drift. Code fixes or mitigations\u2014out of manifest scope.",
+    "summary": "Leading hypothesis rests entirely on static analysis (med confidence) with zero log confirmation. Three critical weaknesses: (1) no evidence the 33 timeouts actually triggered retries; (2) key computation formula unverified against logs\u2014B-logs-0002 still open; (3) unexplained 4-minute gap between first timeout and first drift suggests timing mismatch or different mechanism. Cache eviction alternative (171 events) completely untested. All directive experiments target log evidence to confirm or falsify the retry mechanism.",
+    "dissent_funded": true
+   }
+  },
+  {
+   "id": "sonnet45/C2-S0-sceptic-3",
+   "result": {
+    "chosen_from": "boards and synthesis",
+    "hypotheses": [
+     {
+      "name": "Gateway retries send new idempotency key causing double reservations",
+      "based_on": [
+       "B-shared-0001",
+       "B-static-0001"
+      ],
+      "status": "leading",
+      "reason": "Static code shows idem_key(rid, attempt) includes attempt number (services/gateway.py:24), called in retry loop. But: ZERO log confirmation, 4-minute gap between first timeout (10:06:12) and first drift (10:10:00) unexplained, scale mismatch (33 timeouts vs drift=+1), and key calculation untested (B-logs-0002). Entirely static; mechanism unverified."
+     },
+     {
+      "name": "Idempotency-cache eviction allows double reservations",
+      "based_on": [
+       "B-logs-0001"
+      ],
+      "status": "live",
+      "reason": "171 evictions with 64-entry cache. But evictions start at 10:15:20, AFTER drift appears (10:10:00), so cannot be the initial cause. Could amplify drift later if attempt=1 keys are evicted before attempt=2 checks cache. Untested."
+     },
+     {
+      "name": "orders v1.4.2 deploy changed reconcile logic creating false drift",
+      "based_on": [
+       "B-ops-0001"
+      ],
+      "status": "live",
+      "reason": "Deployed at 10:14:40 with 'reconcile log wording' in changelog. Drift started earlier (10:10:00), but what if the deploy changed what counts as drift or how it's calculated, making pre-existing conditions suddenly visible? Or what if drift in logs only appears after deploy? Untested; diff not examined."
+     },
+     {
+      "name": "Timeout causes reserve without confirm (not retry-specific)",
+      "based_on": [],
+      "status": "live",
+      "reason": "Alternative to leading hypothesis: if first attempt times out at gateway but completes at inventory, and orders never confirms it (timeout at orders level), we get reserve without confirm - no retry needed. Not explicit on boards but implied by B-static-0001's 'not cancelled' note. Separates from retry-key mechanism."
+     }
+    ],
+    "directive": [
+     {
+      "lane": "logs",
+      "experiment": "Trace r-0023 end-to-end with computed keys: calculate sha1('r-0023:1')[:8] and sha1('r-0023:2')[:8], grep both in merged.log for reserve calls, trace through gateway/orders/inventory lines, count reserves vs confirms.",
+      "separates": "Leading hypothesis vs eviction vs false-reporting",
+      "predictions": "Leading: 2 reserves (different keys), 1 confirm. Eviction: 1 reserve if key not evicted, 2 if evicted. False-reporting: reserves=confirms. Timeout-only: 1 reserve, 0 confirms."
+     },
+     {
+      "lane": "logs",
+      "experiment": "Timeline granularity: grep for 'drift' between 10:06:12-10:14:40 and after 10:14:40; count drift reports before vs after deploy, measure drift accumulation rate in each window.",
+      "separates": "Deploy hypothesis vs retry hypothesis vs eviction",
+      "predictions": "Deploy: drift only in logs after 10:14:40, or step change at deploy. Retry: drift accumulates from ~10:06-10:10 onward. Eviction: drift accelerates after 10:15:20."
+     },
+     {
+      "lane": "static",
+      "experiment": "Read orders v1.4.2 diff or commit, specifically reconcile-related changes. Check if reconcile logic, not just wording, changed - how reserved/confirmed are counted, queried, or compared.",
+      "separates": "Real double-reservation vs false-reporting artifact",
+      "predictions": "False-reporting: reconcile query or calculation changed, making pre-existing state suddenly appear as drift. Real: no reconcile logic change, only log message wording."
+     },
+     {
+      "lane": "logs",
+      "experiment": "For 5 timed-out requests (r-0023, r-0061, r-0065, r-0074, r-0084): compute attempt=1 key, find its reserve timestamp, find its eviction timestamp (if any), find attempt=2 timestamp (if any). Check if eviction happened BETWEEN attempt=1 reserve and attempt=2 check.",
+      "separates": "Eviction-enables-double vs new-key-alone-causes-double",
+      "predictions": "Eviction-enables: attempt=1 key evicted before attempt=2 runs. New-key-alone: attempt=2 runs regardless of eviction. Neither: attempt=2 never runs or doesn't reserve."
+     }
+    ],
+    "not_pursuing": "Broader static analysis beyond the retry/idem mechanism (sufficient static findings exist; need empirical tests). General log mining before confirming the specific mechanism for known timed-out requests (narrow before widening). Additional config archaeology (B-ops-0001 already covers deploy/config timeline).",
+    "dissent_funded": true,
+    "summary": "Leading hypothesis lacks log confirmation despite 4 judge gaps noting this. Critical timing contradictions: 4-minute gap between first timeout and first drift, evictions start AFTER drift appears, deploy timing suspicious. All hypotheses remain static or untested. Directive prioritizes empirical tests that would BREAK the leading hypothesis: end-to-end trace of r-0023 with computed keys, timeline granularity around deploy, reconcile diff review, and eviction-timing analysis. Scale mismatch (33 timeouts, drift=+1) and key calculation gap (B-logs-0002) remain unexplained."
+   }
+  }
+ ]
+}

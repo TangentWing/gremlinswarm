@@ -1,0 +1,95 @@
+{
+ "results": [
+  {
+   "id": "sonnet45/A1-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests (r-0012, r-0035, r-0039, r-0053, r-0058) end to end. Each triggered 2-3 inventory reserves due to retry logic: slow first attempts complete after faster retries. trace.json lists all reserve line numbers per request.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A2-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests (r-0012, r-0035, r-0039, r-0053, r-0058) end to end by computing idempotency keys and grepping merged.log. Each request reserved stock 2-3 times because retries use new keys and timed-out calls complete async. Confirms B-shared-0001.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end. All show multiple inventory reserves (2-3 per request) but only 1 order confirmation. Attribution: matched inventory timestamps (logged - took) to orders place calls within 100ms. See trace.json and finding B-logs-0003.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end. Each timeout/retry causes duplicate inventory reserves (2-3 reserves per request) but only 1 confirmed order. Attribution: matched SKU+qty between orders 'place' and inventory 'reserve ok' within request timeframe.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A0d-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests showing each retry reserves stock again with a new idempotency key. Pattern confirmed: slow reserves (>2s) trigger timeouts, retries use new keys, both reserves succeed. See B-logs-0003 and trace.json.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 10 timed-out requests end-to-end. Every timed-out request has multiple inventory reserves (2-3 per request). Attribution by computing idempotency key sha1(rid:attempt)[:8] and matching to inventory lines. Confirms B-shared-0001: retries use new keys, causing double/triple reservations.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A2-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 10 timed-out requests end-to-end; all show double-reserve pattern: gateway retry creates two inventory reserves but orders confirms only once, causing drift of +1 per timeout.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  }
+ ]
+}

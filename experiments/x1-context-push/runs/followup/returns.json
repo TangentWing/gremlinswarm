@@ -1,0 +1,167 @@
+{
+ "results": [
+  {
+   "id": "sonnet45/A3-T-4",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end. All reserved inventory 2-3 times (one per retry attempt). Attribution method: compute sha1(rid:attempt)[:8] per gateway.py:22-24 and grep for key= in merged.log. Mechanism confirmed: gateway timeout doesn't cancel upstream calls; each retry uses a new idem key.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A3-T-2",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end to end. Each had 2-3 inventory reserves but only 1 order confirmation. Attribution: computed sha1(rid:attempt)[:8] per gateway.py:22-24 and grepped merged.log. Evidence confirms gateway retries use new idem_keys, causing double/triple reserves.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A3-H-2",
+   "result": {
+    "status": "done",
+    "summary": "Traced 7 timed-out requests end-to-end in merged.log using sha1(rid:attempt) to map request ids to inventory idempotency keys. All timed-out requests show 2-3 inventory reserves (not 1). Mechanism confirmed: slow inventory responses trigger gateway timeouts, each retry uses a new idem_key, old reserve calls complete after timeout with different keys, causing multiple reserves per logical request.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A3-T-3",
+   "result": {
+    "status": "done",
+    "summary": "Traced all 33 timed-out requests end to end. All reserved stock multiple times (22 had 2 reserves, 11 had 3 reserves). Attribution: computed sha1(rid:attempt)[:8] per kb/idempotency-key.md and matched inventory reserve lines.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A3-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end to end. Each timeout triggers a gateway retry with a new idempotency key, causing multiple inventory reserves for the same request. r-0065 and r-0084 each produced 3 reserves from 3 retry attempts. Attribution: sha1(rid:attempt)[:8].",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A3-T-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end-to-end by computing idempotency keys (sha1 of rid:attempt). Found 12 inventory reserves for 5 requests (2.4 avg), confirming duplicate reservations. Example: r-0065 triggered 3 reserves (lines 296, 302, 307) due to 3 retry attempts with different keys. Deliverable: trace.json with reserve line numbers per request.",
+    "board_ids": [
+     "B-logs-0003",
+     "B-logs-0004"
+    ],
+    "artifacts": [
+     "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A3-T-1/lanes/logs/tasks/logs-r02-01/trace.json",
+     "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A3-T-1/lanes/logs/tasks/logs-r02-01/example_trace_r-0065.txt"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A3-H-4",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end to end. All show multiple inventory reserves (2-3 per request). Gateway timeout is 2000ms but inventory takes 2000-2600ms. Each retry gets a new idempotency key (sha1(rid:attempt)[:8]), so each reserves stock again. Posted B-logs-0003.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json",
+     "trace_requests.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A3-H-3",
+   "result": {
+    "status": "done",
+    "summary": "Traced 6 timed-out requests end-to-end using computed idempotency keys. All show 2-3 inventory reserves per request but only 1 order confirmation. Late-completing reserve() calls after gateway timeout create the drift. See B-logs-0003 and trace.json.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1L-H-2",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end to end (r-0023, r-0061, r-0074, r-0087, r-0100). All show multiple inventory reserves: 4 requests had 2 reserves each, 1 request had 3 reserves. Mechanism confirmed: gateway timeout triggers retry with new place request; orders service generates new idempotency key for each retry; inventory treats each as separate operation and reserves stock multiple times. Evidence in trace.json with reserve line numbers for each request.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1L-H-1",
+   "result": {
+    "status": "done",
+    "summary": "Traced all 33 timed-out requests end to end. Attribution method: idempotency key = short_hash(rid:attempt) per gateway.py:22-24. Every timed-out request reserved inventory twice because the slow first attempt (>2000ms) completed after the gateway retry, with both reservations succeeding under different keys. This defeats inventory's idempotency protection. Refuted leading hypothesis: evictions occur 13+ minutes after double reservations, so eviction is consequence not cause. Root cause: per-attempt keys in gateway retry strategy.",
+    "board_ids": [
+     "B-logs-0003",
+     "B-shared-0002"
+    ],
+    "artifacts": [
+     "lanes/logs/tasks/logs-r02-01/trace.json",
+     "lanes/logs/tasks/logs-r02-01/trace_requests.py"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1L-H-3",
+   "result": {
+    "status": "done",
+    "summary": "Traced 10 timed-out requests end-to-end. All show multiple inventory reserves: 8 requests had 2 reserves (from 2 attempts), 2 requests had 3 reserves (from 3 attempts). Attribution method: idempotency key = short_hash(f\"{rid}:{attempt}\") per gateway.py:22-24, so each retry uses a different key. Root cause identified: inventory's idempotency cache cannot deduplicate retries because each attempt gets a unique key, causing double/triple reservations.",
+    "board_ids": [
+     "B-logs-0003",
+     "B-shared-0002"
+    ],
+    "artifacts": [
+     "<repo>/investigations/_exp/x1-context-push/followup/sonnet45/A1L-H-3/lanes/logs/tasks/logs-r02-01/trace.json"
+    ]
+   }
+  },
+  {
+   "id": "sonnet45/A1L-H-4",
+   "result": {
+    "status": "done",
+    "summary": "Traced 5 timed-out requests end to end. All show multiple inventory reserves (2-3 per request), one for each gateway retry attempt. Orders detects duplicates but inventory had already reserved stock multiple times with different idempotency keys.",
+    "board_ids": [
+     "B-logs-0003"
+    ],
+    "artifacts": [
+     "trace.json",
+     "attribution_method.md"
+    ]
+   }
+  }
+ ]
+}

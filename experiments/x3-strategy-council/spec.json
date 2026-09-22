@@ -1,0 +1,384 @@
+{
+ "experiment": "x3-strategy-council",
+ "question": "At a strategy decision point, which organisation proposes the better next round: the v1 judge's gaps (C0), a single strategist (C1), a council of three seats with different mandates (C2), or a council of lane advocates who differ in what they know (C3)? Stage a measures members only \u2014 above all whether they disagree; chairs are run (stage b) only for councils whose members do.",
+ "why": "DESIGN_SPACE axis C. Same model + same input may give correlated votes: a council that agrees with itself is an expensive single strategist.",
+ "target": "trisvc, profile bursty",
+ "target_profile": "bursty",
+ "states": {
+  "S1": "end of round 1 on the red-herring board: eviction leads, the deploy is second; the timeline already shows drift before both the deploy and the first eviction, and the true lead is an un-promoted low-confidence note on the static lane board",
+  "S2": "end of round 2, stalled: the logs lane looked for evicted keys being reserved again and found none (0 of 171), reported as inconclusive; timing-based attribution failed inside bursts; the synthesis still leads with eviction; judge: no progress",
+  "S0": "end of round 1 on the true-lead board: the per-attempt-key explanation leads at med, static-only; eviction is 'low, untested'. Measures false demotion of a correct lead."
+ },
+ "install": {
+  "bin/xbrief.py": "xbrief.py",
+  "prompts/strategist.md": "prompts/strategist.md",
+  "prompts/member.md": "prompts/member.md",
+  "prompts/advocate.md": "prompts/advocate.md",
+  "prompts/chair.md": "prompts/chair.md"
+ },
+ "models": {
+  "sonnet45": "claude-sonnet-4-5",
+  "opus5": "claude-opus-5"
+ },
+ "norm_model": "sonnet45",
+ "k": {
+  "pilot": {
+   "sonnet45": 1
+  },
+  "stage-a": {
+   "sonnet45": 3,
+   "opus5": 1
+  },
+  "stage-b1": {
+   "sonnet45": 3
+  },
+  "stage-b2": {
+   "sonnet45": 3
+  }
+ },
+ "cells": [
+  {
+   "id": "C0-S1",
+   "role": "judge",
+   "state": "strategy",
+   "variant": "S1",
+   "state_args": [
+    "--nojudge"
+   ],
+   "arm": "C0",
+   "what": "v1: the judge's gaps are the only direction"
+  },
+  {
+   "id": "C1-S1",
+   "role": "strategist",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "C1"
+  },
+  {
+   "id": "C2-S1-focus",
+   "role": "member",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "C2",
+   "params": {
+    "persona": "focus"
+   }
+  },
+  {
+   "id": "C2-S1-breadth",
+   "role": "member",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "C2",
+   "params": {
+    "persona": "breadth"
+   }
+  },
+  {
+   "id": "C2-S1-sceptic",
+   "role": "member",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "C2",
+   "params": {
+    "persona": "sceptic"
+   }
+  },
+  {
+   "id": "C3-S1-static",
+   "role": "advocate",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "C3",
+   "params": {
+    "lane": "static"
+   }
+  },
+  {
+   "id": "C3-S1-logs",
+   "role": "advocate",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "C3",
+   "params": {
+    "lane": "logs"
+   }
+  },
+  {
+   "id": "C3-S1-ops",
+   "role": "advocate",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "C3",
+   "params": {
+    "lane": "ops"
+   }
+  },
+  {
+   "id": "C0-S2",
+   "role": "judge",
+   "state": "strategy",
+   "variant": "S2",
+   "state_args": [
+    "--nojudge"
+   ],
+   "arm": "C0",
+   "what": "v1: the judge's gaps are the only direction"
+  },
+  {
+   "id": "C1-S2",
+   "role": "strategist",
+   "state": "strategy",
+   "variant": "S2",
+   "arm": "C1"
+  },
+  {
+   "id": "C2-S2-focus",
+   "role": "member",
+   "state": "strategy",
+   "variant": "S2",
+   "arm": "C2",
+   "params": {
+    "persona": "focus"
+   }
+  },
+  {
+   "id": "C2-S2-breadth",
+   "role": "member",
+   "state": "strategy",
+   "variant": "S2",
+   "arm": "C2",
+   "params": {
+    "persona": "breadth"
+   }
+  },
+  {
+   "id": "C2-S2-sceptic",
+   "role": "member",
+   "state": "strategy",
+   "variant": "S2",
+   "arm": "C2",
+   "params": {
+    "persona": "sceptic"
+   }
+  },
+  {
+   "id": "C3-S2-static",
+   "role": "advocate",
+   "state": "strategy",
+   "variant": "S2",
+   "arm": "C3",
+   "params": {
+    "lane": "static"
+   }
+  },
+  {
+   "id": "C3-S2-logs",
+   "role": "advocate",
+   "state": "strategy",
+   "variant": "S2",
+   "arm": "C3",
+   "params": {
+    "lane": "logs"
+   }
+  },
+  {
+   "id": "C3-S2-ops",
+   "role": "advocate",
+   "state": "strategy",
+   "variant": "S2",
+   "arm": "C3",
+   "params": {
+    "lane": "ops"
+   }
+  },
+  {
+   "id": "C0-S0",
+   "role": "judge",
+   "state": "strategy",
+   "variant": "S0",
+   "state_args": [
+    "--nojudge"
+   ],
+   "arm": "C0"
+  },
+  {
+   "id": "C1-S0",
+   "role": "strategist",
+   "state": "strategy",
+   "variant": "S0",
+   "arm": "C1"
+  },
+  {
+   "id": "C1s-S0",
+   "role": "strategist",
+   "state": "strategy",
+   "variant": "S0",
+   "arm": "C1s",
+   "params": {
+    "persona": "sceptic"
+   },
+   "what": "single strategist with the sceptic seat's framing (stage a: that seat alone kept the true lead live 6/6)"
+  },
+  {
+   "id": "C1s-S1",
+   "role": "strategist",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "C1s",
+   "params": {
+    "persona": "sceptic"
+   },
+   "what": "single strategist with the sceptic seat's framing (stage a: that seat alone kept the true lead live 6/6)"
+  },
+  {
+   "id": "C1s-S2",
+   "role": "strategist",
+   "state": "strategy",
+   "variant": "S2",
+   "arm": "C1s",
+   "params": {
+    "persona": "sceptic"
+   },
+   "what": "single strategist with the sceptic seat's framing (stage a: that seat alone kept the true lead live 6/6)"
+  },
+  {
+   "id": "C2-S0-focus",
+   "role": "member",
+   "state": "strategy",
+   "variant": "S0",
+   "arm": "C2",
+   "params": {
+    "persona": "focus"
+   }
+  },
+  {
+   "id": "C2-S0-breadth",
+   "role": "member",
+   "state": "strategy",
+   "variant": "S0",
+   "arm": "C2",
+   "params": {
+    "persona": "breadth"
+   }
+  },
+  {
+   "id": "C2-S0-sceptic",
+   "role": "member",
+   "state": "strategy",
+   "variant": "S0",
+   "arm": "C2",
+   "params": {
+    "persona": "sceptic"
+   }
+  },
+  {
+   "id": "C2c-S1",
+   "role": "chair",
+   "state": "strategy",
+   "variant": "S1",
+   "arm": "C2c",
+   "inputs": {
+    "council/positions.md": {
+     "from_run": "stage-a",
+     "ids": [
+      "{model}/C2-S1-focus-{i}",
+      "{model}/C2-S1-breadth-{i}",
+      "{model}/C2-S1-sceptic-{i}"
+     ]
+    }
+   },
+   "what": "chair over the persona council's three independent positions (set i = the members' trial i)"
+  },
+  {
+   "id": "C2c-S2",
+   "role": "chair",
+   "state": "strategy",
+   "variant": "S2",
+   "arm": "C2c",
+   "inputs": {
+    "council/positions.md": {
+     "from_run": "stage-a",
+     "ids": [
+      "{model}/C2-S2-focus-{i}",
+      "{model}/C2-S2-breadth-{i}",
+      "{model}/C2-S2-sceptic-{i}"
+     ]
+    }
+   },
+   "what": "chair over the persona council's three independent positions (set i = the members' trial i)"
+  },
+  {
+   "id": "C2c-S0",
+   "role": "chair",
+   "state": "strategy",
+   "variant": "S0",
+   "arm": "C2c",
+   "inputs": {
+    "council/positions.md": {
+     "from_run": "stage-b1",
+     "ids": [
+      "{model}/C2-S0-focus-{i}",
+      "{model}/C2-S0-breadth-{i}",
+      "{model}/C2-S0-sceptic-{i}"
+     ]
+    }
+   },
+   "what": "chair over the persona council's three independent positions (set i = the members' trial i)"
+  }
+ ],
+ "metrics": {
+  "true_live / true_leading": "a hypothesis in the position is the per-attempt-key explanation (or rests on the static note) with status live or leading / leading",
+  "herring_demoted": "the eviction hypothesis is deprioritised or refuted",
+  "discriminating": "the directive holds an experiment from the answer key's list: D1 same key reserved twice?, D2 derive keys from rid+attempt and attribute reserves, D3 eviction age vs retry gap, D4 onset vs deploy / first eviction",
+  "key_trace (D2)": "the directive sends a lane to attribute reserves through the key derivation \u2014 the step that unblocks the success criteria",
+  "council": "per set of three members: distinct leading choices, union of the flags above (what a perfect chair could extract), and cost"
+ },
+ "decision_rule": "A council goes to stage b only if its members disagree on the leading hypothesis in more than 10% of sets OR its union beats C1's rate on true_live or key_trace by more than C1's own spread. If neither council does, C1 (or C4 escalation) stands. C0 vs C1 shows whether a strategist adds anything over the judge's gaps at all.",
+ "calibration": "Pilot k=1. If C1 already gets everything on both states, the states are too easy (make the note less visible or the negative result more buried); if nothing gets anything, the lead is too buried.",
+ "target_view": {
+  "roles": [
+   "judge",
+   "strategist",
+   "member",
+   "advocate"
+  ],
+  "keep": [
+   "BUGREPORT.md",
+   "config"
+  ],
+  "why": "pilot: 11 of 16 strategy agents read gateway.py / inventory.py / merged.log and found the cause themselves \u2014 investigator work a strategist cannot do on a real codebase. Strategy roles now reach only the bug report and config."
+ },
+ "partition_boards": [
+  "advocate"
+ ],
+ "partition_why": "pilot: advocates queried the other lanes' boards despite the prompt; information diversity must be enforced (in production: identity-scoped queries in board.py).",
+ "pilot_note": "k=1 pilot (runs/pilot): every arm found the true lead (the note was in the brief and the source was readable) but only the councils demoted the red herring on the stalled state (6/6 members vs 0/1 strategist); C2 at S1 had 3 distinct leading choices. Fixture and scorer fixed before stage a.",
+ "runs": {
+  "stage-b1": {
+   "cells": [
+    "C0-S0",
+    "C1-S0",
+    "C1-S1",
+    "C1-S2",
+    "C1s-S0",
+    "C1s-S1",
+    "C1s-S2",
+    "C2-S0-focus",
+    "C2-S0-breadth",
+    "C2-S0-sceptic"
+   ],
+   "purpose": "concurrent strategist baselines on all three states; sceptic-framed strategist; council members on the true-lead board (false demotion)"
+  },
+  "stage-b2": {
+   "cells": [
+    "C2c-S0",
+    "C2c-S1",
+    "C2c-S2"
+   ],
+   "purpose": "chairs over the stage-a (S1, S2) and stage-b1 (S0) Sonnet council sets"
+  }
+ },
+ "stage_a_note": "Sonnet: C0 0/6 true lead live; C1 5/6 (S1 2/3, S2 3/3); C2 union 6/6 sets, members disagree in 6/6 sets; C3 union 3/6 \u2014 the static advocate (whose board holds the true-lead note) kept eviction leading 6/6: advocates defend their lane's prior work. C3 out. 3 Opus trials bypassed the target view by searching the repo (marked); 2 Opus advocates lost to a 500-char schema cap (raised)."
+}
