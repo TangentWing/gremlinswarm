@@ -1,0 +1,150 @@
+{
+ "version": 1,
+ "slug": "trisvc-e6",
+ "title": "Inventory reserves more stock than orders confirms (E6 end-to-end, v2 slice)",
+ "goal": "Find why inventory holds more reserved units than orders has confirmed, locate the cause to file:line, and rule rival explanations in or out with evidence.",
+ "question": "Why does `reconcile drift` appear and grow on the morning of 2 March?",
+ "scope": {
+  "in": [
+   "__TARGET_ROOT__/services",
+   "__TARGET_ROOT__/logs",
+   "__TARGET_ROOT__/config",
+   "__TARGET_ROOT__/BUGREPORT.md"
+  ],
+  "out": [
+   "fixing the code",
+   "anything outside __TARGET_ROOT__ and the investigation directory"
+  ],
+  "notes": "Read-only. The services are not running; work from source, config and logs/merged.log."
+ },
+ "targets": [
+  {
+   "name": "trisvc",
+   "path": "__TARGET_ROOT__",
+   "notes": "three Python services and their merged log"
+  }
+ ],
+ "resources": [
+  {
+   "name": "source",
+   "kind": "local-repo",
+   "access": "__TARGET_ROOT__/services",
+   "exclusive": false,
+   "check": "test -f __TARGET_ROOT__/services/gateway.py",
+   "notes": "Read-only."
+  },
+  {
+   "name": "logs",
+   "kind": "logs",
+   "access": "__TARGET_ROOT__/logs/merged.log",
+   "exclusive": false,
+   "check": "test -f __TARGET_ROOT__/logs/merged.log",
+   "notes": "One merged file, UTC, all three services."
+  },
+  {
+   "name": "config",
+   "kind": "other",
+   "access": "__TARGET_ROOT__/config",
+   "exclusive": false,
+   "check": "test -f __TARGET_ROOT__/config/deploys.log",
+   "notes": "Service config and the deploy log."
+  }
+ ],
+ "safety": [
+  "Never modify anything under __TARGET_ROOT__.",
+  "No network, no installs; python3 one-liners are fine."
+ ],
+ "criteria": {
+  "success": [
+   "Root cause located to a specific file:line, with the mechanism that makes reserved exceed confirmed.",
+   "Log evidence: at least 5 affected requests traced end to end (gateway, orders, inventory) with merged.log line numbers, showing the mechanism.",
+   "Each rival explanation raised (at minimum: idempotency-cache eviction; the orders v1.4.2 deploy) is confirmed or ruled out with evidence."
+  ],
+  "evidence_standard": "Log claims cite merged.log line numbers and quote the line. Code claims cite file:line. A claim about N cases lists the N request ids. Static-only claims say so and carry at most 'med' confidence.",
+  "stop_if": []
+ },
+ "lanes": [
+  {
+   "name": "static",
+   "archetype": "static-trace",
+   "resources": [
+    "source"
+   ],
+   "verify_default": "adversarial",
+   "mandate": "Read the three services; trace how a request, its ids and its idempotency key flow from gateway to inventory.",
+   "evidence_standard": "Cite file:line for every claim; static-only claims are at most 'med'."
+  },
+  {
+   "name": "logs",
+   "archetype": "log-mining",
+   "resources": [
+    "logs"
+   ],
+   "verify_default": "light",
+   "mandate": "Mine logs/merged.log: timeline, onset of drift, and end-to-end traces of affected requests.",
+   "evidence_standard": "Cite merged.log line numbers and quote lines; list request ids for counts."
+  },
+  {
+   "name": "ops",
+   "archetype": "env-diff",
+   "resources": [
+    "config"
+   ],
+   "verify_default": "light",
+   "mandate": "Config and deploys: what changed, when, and whether it lines up with the onset."
+  },
+  {
+   "name": "skunkworks",
+   "archetype": "skunkworks",
+   "resources": [
+    "source",
+    "logs",
+    "config"
+   ],
+   "verify_default": "light",
+   "mandate": "Generalist: unroutable requests, cross-lane asks, salvage of failed work."
+  }
+ ],
+ "budget": {
+  "max_concurrent": 4,
+  "rounds_per_checkpoint": 2,
+  "max_rounds": 4,
+  "max_agents_per_segment": 40,
+  "max_tasks_per_lane_round": 2,
+  "verify_rounds": 2,
+  "max_children": 0,
+  "stall_rounds": 2
+ },
+ "models": {
+  "scope": "claude-sonnet-4-5",
+  "plan": "claude-sonnet-4-5",
+  "investigator": "claude-sonnet-4-5",
+  "challenger": "claude-sonnet-4-5",
+  "salvage": "claude-sonnet-4-5",
+  "synthesizer": "claude-sonnet-4-5",
+  "judge": "claude-sonnet-4-5",
+  "refuter": "claude-sonnet-4-5",
+  "strategist": "claude-sonnet-4-5",
+  "checkpoint": "claude-sonnet-4-5"
+ },
+ "effort": {
+  "scope": "low",
+  "checkpoint": "low"
+ },
+ "agent_types": {
+  "scope": "investigate:scope",
+  "plan": "investigate:plan",
+  "investigator": "investigate:investigator",
+  "challenger": "investigate:challenger",
+  "salvage": "investigate:salvage",
+  "synthesizer": "investigate:synthesizer",
+  "judge": "investigate:judge",
+  "refuter": "investigate:refuter",
+  "strategist": "investigate:strategist",
+  "checkpoint": "investigate:checkpoint"
+ },
+ "safety_deny": [
+  "\\bgit\\s+push\\b",
+  "\\bsudo\\b"
+ ]
+}
