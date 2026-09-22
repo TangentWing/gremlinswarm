@@ -75,7 +75,8 @@ amend --id ID --set status=confirmed|refuted|irrelevant [--set confidence=low] -
 mail list --lane L     mail send --to L ...     mail reply --id M --body B [--status declined]
 task start|show --id T      task note --id T --text "..."      task started|stopped ...
 task finish --id T --status done|partial|failed|blocked --summary S [--board-ids ..] [--artifacts ..]
-worklog --lane L [--tail N]      steer list [--lane L]      judge show      leftovers [--lane L]
+kb list | kb show --slug S | kb search --grep X          kb save --slug S --title T --match a,b --refs f:l  (stdin)
+worklog --lane L [--tail N]      steer list [--lane L]      judge show      strategy show      leftovers [--lane L]
 write --path <relative path inside the investigation> [--append]   (stdin → file)
 ask --question Q --context C
 ```
@@ -84,7 +85,7 @@ ask --question Q --context C
 
 ```
 manifest.json  state.json  steering.jsonl  report.md
-shared/board.jsonl  shared/synthesis.md          judge/round-NN.json
+shared/board.jsonl  shared/synthesis.md  shared/strategy.md   judge/round-NN.json   kb/<slug>.md
 mail/<lane>.jsonl
 lanes/<lane>/lane.md  plan.json  archive/  worklog.jsonl  board.jsonl  scope/round-NN.md
 lanes/<lane>/tasks/<task-id>/  task.json notes.md started.jsonl result.json review-N.json (+ your artifacts)

@@ -205,6 +205,65 @@ echo "== write guard"
 expect_fail "writing manifest.json" sh -c "echo hi | python3 $S/bin/board.py write --path manifest.json"
 expect_fail "path escape" sh -c "echo hi | python3 $S/bin/board.py write --path ../escape.md"
 expect_fail "writing a jsonl log" sh -c "echo hi | python3 $S/bin/board.py write --path shared/board.jsonl"
+expect_fail "writing a kb page by hand" sh -c "echo hi | python3 $S/bin/board.py write --path kb/x.md"
+expect_fail "writing strategy.md by hand" sh -c "echo hi | python3 $S/bin/board.py write --path shared/strategy.md"
+
+echo "== v2 slice: kb pages, task context, corrections, judge rule, strategy"
+S4="$S-v2"; rm -rf "$S4"; mkdir -p "$S4"; cp -R "$S/bin" "$S/prompts" "$S/archetypes" "$S/manifest.json" "$S4/"
+b4() { python3 "$S4/bin/board.py" "$@"; }
+b4 scaffold >/dev/null
+expect_fail "kb save without a body" sh -c "echo short | python3 $S4/bin/board.py kb save --slug k --title t"
+expect_fail "kb save with a bad slug" sh -c "echo 'a mechanism page long enough to pass the length check here' | python3 $S4/bin/board.py kb save --slug 'Bad Slug' --title t"
+{ echo 'src/ipc/recv.c:40 reads a length prefix then casts buf+3 to struct hdr*; the prefix is little-endian (recv.c:38).' \
+  | b4 kb save --slug ipc-header-layout --title "IPC header layout" --match "struct hdr,recv.c" --refs src/ipc/recv.c:40 --as static/static-r01-01 | grep -q "saved"; } || fail "kb save"; ok "kb save writes a page"
+{ b4 kb list | grep -q "ipc-header-layout"; } || fail "kb list"; ok "kb list shows it"
+{ b4 kb show --slug ipc-header-layout | grep -q "little-endian"; } || fail "kb show"; ok "kb show prints the body"
+{ b4 kb search --grep prefix | grep -q "ipc-header-layout"; } || fail "kb search"; ok "kb search finds it"
+HYP=$(b4 post --lane static --kind hypothesis --subject "misaligned cast corrupts the header" --body "guess" --as static/x)
+FACT=$(b4 post --lane static --kind finding --subject "recv casts buf+3" --body "src/ipc/recv.c:40" --refs src/ipc/recv.c:40 --confidence high --as static/x)
+expect_fail "context naming an unknown entry" sh -c "echo '{\"tasks\":[{\"id\":\"logs-r01-01\",\"title\":\"t\",\"objective\":\"o\",\"deliverable\":\"d\",\"context\":[\"B-static-0099\"]}]}' | python3 $S4/bin/board.py plan save --lane logs"
+expect_fail "context naming an unknown kb page" sh -c "echo '{\"tasks\":[{\"id\":\"logs-r01-01\",\"title\":\"t\",\"objective\":\"o\",\"deliverable\":\"d\",\"context\":[\"no-such-page\"]}]}' | python3 $S4/bin/board.py plan save --lane logs"
+echo "{\"tasks\":[{\"id\":\"logs-r01-01\",\"title\":\"Find where struct hdr is read from the log\",\"objective\":\"o\",\"deliverable\":\"d\",\"context\":[\"$HYP\",\"$FACT\"]},
+ {\"id\":\"logs-r01-02\",\"title\":\"unrelated\",\"objective\":\"o\",\"deliverable\":\"d\",\"context\":[\"ipc-header-layout\"]}]}" | b4 plan save --lane logs --as logs/plan >/dev/null
+CTX=$(b4 task start --id logs-r01-01 --as logs/logs-r01-01)
+{ grep -q "Context pushed to this task" <<<"$CTX"; } || fail "task start prints context"; ok "task start prints the pushed context"
+{ grep -q "$HYP \[hypothesis — UNDER TEST" <<<"$CTX" && ! grep -q "^  guess" <<<"$CTX"; } || fail "hypothesis by id only"; ok "an open hypothesis is shown as under test, subject only"
+{ grep -q "src/ipc/recv.c:40" <<<"$CTX"; } || fail "finding in full"; ok "a finding is shown in full"
+{ grep -q "little-endian" <<<"$CTX"; } || fail "matched kb page"; ok "a kb page whose match token is in the spec is pushed without being named"
+CTX2=$(b4 task start --id logs-r01-02 --as logs/logs-r01-02)
+{ grep -q "little-endian" <<<"$CTX2"; } || fail "named kb page"; ok "a kb page named in context is pushed"
+b4 task finish --id logs-r01-01 --status done --summary "found" --board-ids "$FACT" --as logs/logs-r01-01 >/dev/null
+expect_fail "correction with redo" b4 task review --id logs-r01-01 --verdict redo --summary s --correction "c" --as logs/challenger
+{ b4 task review --id logs-r01-01 --verdict accept --summary "ok" --correction "row 2: line 41 not 40" --as logs/challenger | grep -q "1 correction"; } || fail "accept with correction"; ok "accept records corrections"
+{ python3 -c "import json;r=json.load(open('$S4/lanes/logs/tasks/logs-r01-01/review-1.json'));assert r['corrections']==['row 2: line 41 not 40'] and r['verdict']=='accept'"; } || fail "correction persisted"; ok "correction persisted in the review"
+b4 post --lane shared --kind finding --subject "root cause: misaligned header" --body "from $FACT" --refs "$FACT" --confidence high --as synth >/dev/null
+{ b4 digest | grep -q "with corrections"; } || fail "digest shows corrections"; ok "digest marks a review that carried corrections"
+expect_fail "judge met while an open hypothesis is cited by no shared entry" sh -c "echo '{\"met\":true,\"progress\":true,\"gaps\":[],\"summary\":\"s\"}' | python3 $S4/bin/board.py judge save --round 1 --as judge"
+{ echo '{"met":false,"progress":true,"gaps":["static: rule out the misaligned-cast hypothesis"],"summary":"s"}' | b4 judge save --round 1 --as judge >/dev/null; } || fail "met=false saves"; ok "met=false with the rival in gaps saves"
+b4 amend --id "$HYP" --set status=irrelevant --note "not a rival: it is the leading explanation itself" --as judge >/dev/null
+{ echo '{"met":true,"progress":true,"gaps":[],"summary":"s"}' | b4 judge save --round 2 --as judge | grep -q saved; } || fail "met after closing"; ok "met=true saves once the rival is closed"
+expect_fail "strategy with one live hypothesis" sh -c "echo '{\"hypotheses\":[{\"name\":\"a\",\"status\":\"leading\",\"reason\":\"r\"}]}' | python3 $S4/bin/board.py strategy save --round 3 --as strategist"
+expect_fail "strategy with a bad status" sh -c "echo '{\"hypotheses\":[{\"name\":\"a\",\"status\":\"maybe\",\"reason\":\"r\"},{\"name\":\"b\",\"status\":\"live\",\"reason\":\"r\"}]}' | python3 $S4/bin/board.py strategy save --round 3 --as strategist"
+{ b4 strategy show | grep -q "no strategy yet"; } || fail "strategy show empty"; ok "strategy show before any position"
+{ b4 brief --role plan --lane logs --round 3 | grep -q "Strategist's intent" && fail "plan brief has intent before a strategy exists"; } || ok "plan brief carries no intent section before a strategy exists"
+{ echo '{"hypotheses":[{"name":"misaligned cast","status":"leading","reason":"recv.c:40","based_on":["B-static-0002"]},{"name":"stale length prefix","status":"live","reason":"unexplained short reads"}],"settle":["does a corrupted header always follow a short read? cast predicts no, prefix predicts yes"],"not_pursuing":"kernel bugs","summary":"s"}' \
+  | b4 strategy save --round 3 --as strategist | grep -q "strategy v1 saved"; } || fail "strategy save"; ok "strategy v1 saved"
+{ b4 strategy show | grep -q "What this round must settle"; } || fail "strategy.md rendered"; ok "strategy.md rendered as intent"
+{ b4 wf-args | grep -q '"has_strategy": true'; } || fail "wf-args has_strategy"; ok "wf-args reports has_strategy"
+PB=$(b4 brief --role plan --lane logs --round 3)
+{ grep -q "Strategist's intent for this round" <<<"$PB" && grep -q "stale length prefix" <<<"$PB"; } || fail "plan brief intent"; ok "plan brief carries the strategist's intent"
+SB=$(b4 brief --role scope --lane logs)
+{ grep -q "Strategist's intent" <<<"$SB" && ! grep -q "state: board.py judge show" <<<"$SB"; } || fail "scope brief"; ok "scope brief carries the intent and drops the raw judge verdict"
+STB=$(b4 brief --role strategist --as strategist)
+for want in "Your role: strategist" "state: board.py strategy delta" "state: board.py digest" "shared/synthesis.md" "state: board.py questions"; do
+  grep -q "$want" <<<"$STB" || fail "strategist brief missing: $want"
+done; ok "strategist brief has the previous position, delta, digest, synthesis and questions"
+NEW=$(b4 post --lane logs --kind evidence --subject "short read precedes every corrupted header" --body "12 of 12" --as logs/x)
+{ b4 strategy delta | grep -q "$NEW"; } || fail "delta"; ok "strategy delta lists entries posted since the position"
+expect_fail "status change without cites" sh -c "echo '{\"hypotheses\":[{\"name\":\"misaligned cast\",\"status\":\"live\",\"reason\":\"r\"},{\"name\":\"stale length prefix\",\"status\":\"leading\",\"reason\":\"r\"}],\"change\":\"flip\"}' | python3 $S4/bin/board.py strategy save --round 4 --as strategist"
+{ echo "{\"hypotheses\":[{\"name\":\"misaligned cast\",\"status\":\"live\",\"reason\":\"r\"},{\"name\":\"stale length prefix\",\"status\":\"leading\",\"reason\":\"12 of 12\"}],\"change\":\"prefix leads: every corruption follows a short read\",\"cites\":[\"$NEW\"]}" \
+  | b4 strategy save --round 4 --as strategist | grep -q "strategy v2 saved"; } || fail "strategy v2"; ok "a status change with cited evidence saves as v2"
+{ [ -f "$S4/shared/archive/strategy.v001.json" ] && b4 strategy show | grep -q "Changed since v1"; } || fail "strategy archive"; ok "the previous position is archived and the change rendered"
 
 echo "== concurrency: 40 parallel posts"
 for i in $(seq 1 40); do b post --lane logs --kind note --subject "n$i" --as logs/p >/dev/null & done; wait

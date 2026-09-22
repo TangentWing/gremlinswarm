@@ -272,6 +272,43 @@ Worth knowing: the harness relays the launching user message verbatim to **every
 agent as "the only user voice". Steering typed after `/investigate:run` therefore reaches all
 agents of that segment, unfiltered by lane.
 
+## 11b. The v2 slice (2026-09-22): strategist, pushed context, kb pages, two mechanical rules
+
+What x1–x3 decided (DESIGN_SPACE.md §5), built as the smallest set of changes that carries
+each result. Untested end to end; E6 on stockd is the confirmation (`DESIGN_SPACE.md`).
+
+- **Strategist** (`prompts/strategist.md`, `agents/strategist.md`, 15 turns). One agent after
+  the judge, sceptic-framed ("assume the leading hypothesis is wrong…"), boards only: the guard
+  blocks any Bash that is not the board CLI and any Read/Glob/Grep outside the investigation
+  directory (x3: a strategist that can read the target does the investigators' work instead).
+  It saves a position with `strategy save`: every explanation in play with a status
+  (`leading|live|deprioritised|refuted`), the observations whose outcome differs between the
+  live ones, and what is not pursued. `board.py` refuses fewer than two live hypotheses (unless
+  the rest are refuted) and refuses a status change that cites no new evidence (hysteresis).
+  **Wake rule** in `investigate.js`, from signals it already has: no strategy yet, judge lost,
+  `met` refuted, no progress, or the synthesizer changed the shared board; otherwise the round
+  is quiet and the strategist is skipped. Setup seeds strategy v1 from the user's hypotheses.
+- **Intent, not orders** (x2). `shared/strategy.md` is rendered from the position and printed in
+  every scope and plan brief; the scope brief drops the raw judge verdict when a strategy exists
+  (3/3 v1 planners queued the wasted task because a gap said so). Planners design the
+  experiments.
+- **Pushed context** (x1). Tasks carry `context: [board ids, kb slugs]`, validated at
+  `plan save`; `task start` prints the entries in full — except open hypotheses, shown by id and
+  subject only, marked UNDER TEST — plus every kb page whose `match` token appears in the spec.
+  Workers get facts, never the synthesis or the strategy.
+- **KB pages** (`kb save|list|show|search`, `kb/<slug>.md`): one mechanism with file:line per
+  claim, written by an `explainer` task (new task kind). Not evidence. `write` refuses `kb/`.
+- **`judge save` refuses `met=true`** while an open hypothesis or contradiction on a lane board
+  is cited by no live shared entry; the error names them and the ways out (a shared entry that
+  cites it; `amend --set status=irrelevant --note`, recorded under the judge's name). x0: with
+  the digest alone 4 of 6 judges still said met.
+- **Proportionate `light` verdict**: `task review --verdict accept --correction "..."` records a
+  detail that was wrong with its right value; the challenger puts the same note on the entry.
+  The digest shows "accept (with corrections)".
+- **Cap deaths leave a record**: the guard's SubagentStop gate now also holds a challenger until
+  the Nth review of this round is on file (confirm1: 5 of 6 cap deaths recorded nothing). A
+  lost judge is named in the next judge's prompt.
+
 ## 12. Known v1 limits
 
 - No per-agent timeout; a hung agent is stopped by hand in `/workflows` (→ salvage).

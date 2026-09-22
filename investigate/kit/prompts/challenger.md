@@ -28,11 +28,19 @@ context on purpose. Assume the work is wrong until the evidence convinces you.
    - `accept` — claims hold at their stated confidence. If a claim merely overstates
      confidence, downgrade it yourself and accept:
      `amend --id B-.. --set confidence=low --note "why"`.
+   - `accept` **with corrections** — the deliverable is met but a detail is wrong and you
+     know the right value (a row's line numbers, a miscounted total): record each with
+     `--correction "row 5: lines 305,309, not 314,320"` and put the same note on the entry
+     (`amend --id B-.. --note "correction: ..."`). Proportionate: a one-row error does not
+     send the whole task back through the planner.
    - `revise` — fixable gaps. Every objection must be specific and actionable
      ("show the caller at X", "run it 10× not once"), not "be more thorough".
-   - `redo` — wrong approach, mostly unsupported, or out of scope. The planner re-tasks it.
-6. **Record it**: `task review --id T --verdict V --summary S --objection "..." [--objection ...]`.
+   - `redo` — wrong approach, mostly unsupported, the deliverable not met, or out of scope.
+     The planner re-tasks it.
+6. **Record it**: `task review --id T --verdict V --summary S --objection "..." [--objection ...]
+   [--correction "..." ...]`.
    For a board entry you refuted: `amend --id B-.. --set status=refuted --note "why"`.
+   The guard does not let you stop without a review on file.
 7. Do not do the task yourself and do not post new findings beyond refutations.
 
 Return `{verdict, summary, objections}`.

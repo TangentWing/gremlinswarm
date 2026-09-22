@@ -33,7 +33,8 @@ other keys or credentials; an access failure is reported, not worked around.
 Goal & question · success criteria (each checkable), evidence standard, `stop_if` ·
 scope in/out · resources (`exclusive` for anything one task at a time may use: a port, a
 device, a test DB) · safety rules · lanes · budget with the cost estimate
-(`max_concurrent` ≤ CPUs − 2).
+(`max_concurrent` ≤ CPUs − 2) · **the user's initial hypotheses** (what they suspect, and what
+else it could be — at least two, one may be "something not yet considered").
 
 Beyond goal/criteria/scope, the manifest needs (details and examples: reference.md):
 
@@ -67,6 +68,10 @@ defaults — but these still need an explicit answer before you create anything:
 4. `scaffold` rendered each `lanes/<lane>/lane.md` from its archetype. Add what is specific
    to this investigation (exact access commands, focus files, known pitfalls), keeping it
    ≤ ~60 lines.
+5. Seed the strategy with the user's hypotheses so round-1 planners start from them rather
+   than from nothing (the strategist takes over after round 1):
+   `<dir>/bin/board.py strategy save --round 1 --as human <<'EOF' {"hypotheses":[{"name":"...","status":"leading","reason":"user: ..."},{"name":"...","status":"live","reason":"..."}],"settle":[],"not_pursuing":"","summary":"seeded at setup"} EOF`
+   Mark every user hypothesis `live` (or `leading` for one); nothing is refuted at setup.
 
 ## 5. Permissions — consent is specific
 

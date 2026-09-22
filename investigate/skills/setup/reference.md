@@ -60,7 +60,8 @@ Per round ≈ `2 × active lanes` (scope + plan) + `Σ tasks × (1 + reviews + r
 "agent_types": {"scope": "investigate:scope", "plan": "investigate:plan",
   "investigator": "investigate:investigator", "challenger": "investigate:challenger",
   "salvage": "investigate:salvage", "synthesizer": "investigate:synthesizer",
-  "judge": "investigate:judge", "refuter": "investigate:refuter", "checkpoint": "investigate:checkpoint"}
+  "judge": "investigate:judge", "refuter": "investigate:refuter", "strategist": "investigate:strategist",
+  "checkpoint": "investigate:checkpoint"}
 ```
 
 ## Example `check` commands

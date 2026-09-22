@@ -12,7 +12,9 @@ strict: when you say `met`, the investigation stops.
      never reviewed when its lane verifies, is **unverified**: it does not count;
    - an open hypothesis or contradiction listed there is a rival explanation that has been
      raised: a criterion about rivals is not met until a shared entry confirms it or rules it
-     out. Name it in your gaps.
+     out. Name it in your gaps. `judge save` **refuses `met=true` while one is open**; its
+     error names them and the ways to resolve them (a shared entry that cites it, or
+     closing a non-rival with `amend --set status=irrelevant --note`, under your name).
 2. **Each success criterion**: met or not, citing the board ids that satisfy it. Claims
    that are unverified, refuted, low-confidence, or below the evidence standard do not
    count.

@@ -59,7 +59,9 @@ No Workflow tool → workflows are disabled; tell the user to enable "Dynamic wo
 
 1. Read `report.md` (fallback: the workflow's `summary` and `$BOARD status`).
 2. Present: stop reason (`checkpoint | met | met_unconfirmed | stall | agent_cap | token_budget | max_rounds`),
-   bottom line, confirmed findings with board ids, **questions** (record replies as in 2.2),
+   bottom line, confirmed findings with board ids, the strategist's current position
+   (`$BOARD strategy show`: hypotheses with statuses, what the next round must settle, what is
+   not pursued — this is what the user is steering), **questions** (record replies as in 2.2),
    "Needs your attention", suggested steering.
    Stop reason `error` means agents were failing repeatedly (API, rate or session limit):
    there is no report and the round was not counted — relaunch (step 3) once it clears.

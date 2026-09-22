@@ -30,6 +30,7 @@ PATTERNS = {
     "task": re.compile(r"^[ \t]*Task: (\S+)", re.M),
     "item": re.compile(r"^[ \t]*SWEEP ITEM (\d+)/(\d+)", re.M),
     "round": re.compile(r"^[ \t]*Round: (\d+)", re.M),
+    "review": re.compile(r"^[ \t]*Review task (\S+) .*review (\d+)\)", re.M),
 }
 TASK_ID_RE = re.compile(r"^(?P<lane>[a-z][a-z0-9_]*)-r\d{2,}-\d{2,}$")
 
@@ -87,6 +88,10 @@ def context(data: dict) -> dict | None:
         ctx[k] = m.group(1) if m else None
     m = PATTERNS["item"].search(text)
     ctx["item"] = int(m.group(1)) if m else None
+    m = PATTERNS["review"].search(text)
+    ctx["review"] = int(m.group(2)) if m else None
+    if m and not ctx["task"]:
+        ctx["task"] = m.group(1)  # a challenger's prompt names its task on the review line
     ctx["manifest"] = load(os.path.join(ctx["inv"], "manifest.json")) or {}
     return ctx
 
@@ -112,6 +117,19 @@ def block(reason: str):
 def pretool(data: dict, ctx: dict):
     tool, ti = data.get("tool_name"), data.get("tool_input") or {}
     m = ctx["manifest"]
+    if ctx["role"] == "strategist":
+        # x3: a strategist that can read the target does the investigators' work instead of directing it.
+        # Everything it needs is in the investigation directory, through the board CLI.
+        board = os.path.join(ctx["inv"], "bin", "board.py")
+        if tool == "Bash" and "board.py" not in (ti.get("command") or ""):
+            block(f"investigate guard: the strategist works from the boards only. Run the board CLI ({board}); "
+                  f"do not read source, logs or hosts — that is the investigators' job.")
+        if tool in ("Read", "Glob", "Grep"):
+            target = ti.get("file_path") or ti.get("path") or ""
+            target = os.path.join(data.get("cwd") or os.getcwd(), os.path.expanduser(target)) if target else ctx["inv"]
+            if not under(target, ctx["inv"]):
+                block(f"investigate guard: the strategist reads nothing outside the investigation directory "
+                      f"({ctx['inv']}). Use `query --id ... --format full` for board entries; targets are off limits.")
     if tool in ("Edit", "Write", "NotebookEdit"):
         target = ti.get("file_path") or ti.get("notebook_path") or ""
         if not target:
@@ -163,6 +181,19 @@ def substop(data: dict, ctx: dict):
         if not os.path.exists(os.path.join(inv, "judge", f"round-{int(ctx['round']):02d}.json")):
             block(f"investigate guard: save your verdict before stopping: {board} judge save --round {ctx['round']} "
                   f"--as judge <<'EOF' {{\"met\":..,\"progress\":..,\"gaps\":[..],\"summary\":\"..\"}} EOF")
+    elif role == "challenger" and ctx["task"] and ctx["review"]:
+        # x0 confirm1: a challenger that dies at its cap leaves no review; the task then reads as never reviewed.
+        m = TASK_ID_RE.match(ctx["task"])
+        if not m:
+            return
+        td = os.path.join(inv, "lanes", m.group("lane"), "tasks", ctx["task"])
+        # reviews are numbered across attempts; "review N" in the prompt is the Nth review this round
+        this_round = [r for r in (load(p) or {} for p in glob.glob(os.path.join(td, "review-*.json")))
+                      if str(r.get("round")) == str(ctx["round"])]
+        if len(this_round) < ctx["review"]:
+            block(f"investigate guard: record the verdict you can support now before stopping: {board} task review "
+                  f"--id {ctx['task']} --verdict accept|revise|redo --summary \"...\" [--objection \"what you could not "
+                  f"check\"] --as <you>. No review on file means the task counts as unverified.")
 
 
 def main():

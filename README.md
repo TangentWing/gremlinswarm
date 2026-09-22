@@ -8,7 +8,7 @@ environment. Design rationale: [DESIGN.md](DESIGN.md).
       → interview → investigations/<slug>/ (manifest, lanes, prompt pack, board CLI)
 /investigate:run    investigations/<slug>  [--rounds N] [steering text]
       → one workflow segment: per lane scope→plan, tasks with verify loops,
-        synthesis, judge → checkpoint report → you answer questions / steer → repeat
+        synthesis, judge, strategist → checkpoint report → you answer questions / steer → repeat
 ```
 
 ## Layout
@@ -21,7 +21,7 @@ investigate/                     the plugin
   agents/*.md                    one agent definition per role (tool limits, turn caps)
   hooks/hooks.json, guard.py     guard: write scope, command deny-list, result recording
   kit/                           copied into every investigation directory
-    bin/board.py                 protocol CLI (stdlib Python): boards, mail, plans, tasks, judge
+    bin/board.py                 protocol CLI (stdlib Python): boards, mail, plans, tasks, judge, strategy, kb
     bin/investigate.js           the workflow: scheduler + round loop
     prompts/*.md                 protocol + one file per role
     archetypes/*.md              lane archetypes (README.md = how to add one; _template.md)

@@ -30,7 +30,7 @@ Quick reference (all commands accept --as AUTHOR and --inv PATH):
   task started --id ID --what W --stop CMD      task stopped --id ID --ref S1
   task finish --id ID --status done|partial|failed|blocked --summary S
               [--board-ids ...] [--artifacts ...] [--details-file F]
-  task review --id ID --verdict accept|revise|redo --summary S [--objection O ...]
+  task review --id ID --verdict accept|revise|redo --summary S [--objection O ...] [--correction C ...]
   worklog --lane L [--tail N]
   leftovers [--lane L]
   write --path REL [--append]         (stdin → file inside the investigation dir)
@@ -42,6 +42,10 @@ Quick reference (all commands accept --as AUTHOR and --inv PATH):
   probe [--lane L] [--resource R]     run resources' non-destructive `check` commands
   digest                              facts for verdict roles: review status behind each shared entry,
                                       open lane hypotheses / questions / contradictions no shared entry cites
+  kb save --slug S --title T [--match a,b] [--refs x,y]   (stdin → kb/<slug>.md: a mechanism page, not evidence)
+  kb list | kb show --slug S | kb search --grep X
+  strategy save --round N [--file F]  (JSON on stdin: the strategist's position; renders shared/strategy.md)
+  strategy show [--format md|json]    strategy delta   (what the boards gained since the last position)
   brief --role R [--lane L] [--task T] [--round N]   everything an agent needs, in one call
 """
 from __future__ import annotations
@@ -66,7 +70,7 @@ BOARD_STATUSES = {"open", "confirmed", "refuted", "irrelevant", "answered"}
 CONFIDENCE = {"low", "med", "high"}
 MAIL_TYPES = {"query", "task-request", "reply", "notice", "failure", "steering"}
 MAIL_STATUSES = {"new", "accepted", "declined", "done"}
-TASK_KINDS = {"read", "trace", "experiment", "endpoint", "debug", "analysis", "cleanup", "sweep", "other"}
+TASK_KINDS = {"read", "trace", "experiment", "endpoint", "debug", "analysis", "cleanup", "sweep", "explainer", "other"}
 TASK_STATUSES = {"queued", "running", "done", "partial", "failed", "blocked", "needs_redo", "dropped"}
 TERMINAL = {"done", "partial", "failed", "blocked", "needs_redo", "dropped"}
 REQUEUE_FROM = {"failed", "partial", "blocked", "needs_redo", "running"}
@@ -74,7 +78,11 @@ FINISH_STATUSES = {"done", "partial", "failed", "blocked"}
 VERIFY = {"none", "light", "adversarial"}
 SIZES = {"short", "long"}
 VERDICTS = {"accept", "revise", "redo"}
-ROLES = ["scope", "plan", "investigator", "challenger", "salvage", "synthesizer", "judge", "refuter", "checkpoint"]
+ROLES = ["scope", "plan", "investigator", "challenger", "salvage", "synthesizer", "judge", "refuter", "strategist",
+         "checkpoint"]
+KB_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+STRATEGY_STATUSES = {"leading", "live", "deprioritised", "refuted"}
+RIVAL_KINDS = {"hypothesis", "contradiction"}   # open and uncited by the shared board = a rival still standing
 
 DEFAULT_BUDGET = {
     "max_concurrent": 4,
@@ -791,6 +799,20 @@ def normalize_task(t: dict, lane: str, m: dict, budget: dict, root: Path | None 
             die(f"task {t['id']}: unknown resource '{r}' (declared: {', '.join(sorted(res_names))})")
     if not isinstance(t["max_children"], int) or t["max_children"] > budget["max_children"]:
         t["max_children"] = budget["max_children"]
+    ctx = t.get("context", [])
+    if not isinstance(ctx, list) or not all(isinstance(c, str) and c for c in ctx):
+        die(f"task {t['id']}: 'context' must be a list of board ids and kb page slugs")
+    if root is not None:
+        known_entries = {}
+        for ln in lane_names(root) + ["shared"]:
+            known_entries.update(materialize(read_jsonl(board_path(root, ln)))[0])
+        for c in ctx:
+            if ENTRY_ID_RE.match(c):
+                if c not in known_entries:
+                    die(f"task {t['id']}: context entry '{c}' is not on any board (superseded entries do not count)")
+            elif not (root / "kb" / f"{c}.md").exists():
+                die(f"task {t['id']}: context '{c}' is neither a board id nor a kb page (`kb list`)")
+    t["context"] = ctx
     return t
 
 
@@ -879,10 +901,116 @@ def cmd_plan(args):
     print(json.dumps({"version": plan["version"], "dispatch": dispatch}, indent=1))
 
 
+# ---------------------------------------------------------------- knowledge base
+
+def kb_dir(root: Path) -> Path:
+    return root / "kb"
+
+
+def kb_load(path: Path) -> dict:
+    """A page: a small `---` header (title, match, refs, by, ts, round) and a markdown body."""
+    text = path.read_text()
+    meta, body = {}, text
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end > 0:
+            for line in text[4:end].splitlines():
+                k, _, v = line.partition(":")
+                meta[k.strip()] = v.strip()
+            body = text[end + 5:]
+    return {"slug": path.stem, "title": meta.get("title", path.stem), "match": csv(meta.get("match")),
+            "refs": csv(meta.get("refs")), "by": meta.get("by", ""), "ts": meta.get("ts", ""),
+            "round": meta.get("round", ""), "body": body.strip()}
+
+
+def kb_pages(root: Path) -> list[dict]:
+    return [kb_load(p) for p in sorted(kb_dir(root).glob("*.md"))] if kb_dir(root).exists() else []
+
+
+def kb_matching(root: Path, text: str) -> list[dict]:
+    """Pages whose `match` tokens occur in the text (a task spec): pushed, not pulled — workers do not go looking."""
+    low = text.lower()
+    return [p for p in kb_pages(root) if any(tok.lower() in low for tok in p["match"])]
+
+
+def fmt_page(p: dict) -> str:
+    head = f"kb/{p['slug']}.md — {p['title']}"
+    meta = "; ".join(x for x in (f"refs {','.join(p['refs'])}" if p["refs"] else "", p["by"], f"r{p['round']}" if p["round"] else "") if x)
+    return f"{head}\n  {meta}\n" + "\n".join("  " + l for l in p["body"].splitlines())
+
+
+def cmd_kb(args):
+    root = inv_root(args)
+    if args.kb_cmd == "save":
+        if not KB_SLUG_RE.match(args.slug):
+            die("--slug must be lowercase letters, digits and hyphens (e.g. gateway-idempotency-key)")
+        body = sys.stdin.read().strip()
+        if len(body) < 40:
+            die("a kb page needs a body on stdin: the mechanism, with file:line for every claim")
+        kb_dir(root).mkdir(exist_ok=True)
+        path = kb_dir(root) / f"{args.slug}.md"
+        existed = path.exists()
+        header = {"title": args.title, "match": ",".join(csv(args.match)), "refs": ",".join(csv(args.refs)),
+                  "by": author(args), "ts": now(), "round": current_round(root)}
+        with locked(path):
+            if existed:
+                (kb_dir(root) / "archive").mkdir(exist_ok=True)
+                path.rename(kb_dir(root) / "archive" / f"{args.slug}.{now().replace(':', '')}.md")
+            path.write_text("---\n" + "\n".join(f"{k}: {v}" for k, v in header.items()) + "\n---\n" + body + "\n")
+        print(f"kb/{args.slug}.md {'updated' if existed else 'saved'} ({len(body)} bytes). It is pushed into any task whose "
+              f"spec mentions: {', '.join(csv(args.match)) or '(no match tokens — planners must name it in context)'}")
+    elif args.kb_cmd == "list":
+        pages = kb_pages(root)
+        for p in pages:
+            print(f"{p['slug']:32s} {p['title']}  (match: {', '.join(p['match']) or '-'})")
+        if not pages:
+            print("(no kb pages)")
+    elif args.kb_cmd == "show":
+        path = kb_dir(root) / f"{args.slug}.md"
+        if not path.exists():
+            die(f"no kb page '{args.slug}' (`kb list`)")
+        print(fmt_page(kb_load(path)))
+    elif args.kb_cmd == "search":
+        pat = re.compile(re.escape(args.grep), re.I)
+        hits = [p for p in kb_pages(root) if pat.search(p["title"] + " " + p["body"] + " " + " ".join(p["match"]))]
+        for p in hits:
+            print(fmt_page(p))
+        if not hits:
+            print("(no kb page matches)")
+
+
 # ---------------------------------------------------------------- tasks
 
 def task_dir(root: Path, tid: str) -> Path:
     return root / "lanes" / lane_of_task(tid) / "tasks" / tid
+
+
+def task_context(root: Path, t: dict) -> str:
+    """What the worker sees of the board without asking (x1: workers do not pull, and a pushed narrative anchors):
+    the entries and pages the planner named, plus kb pages that match the spec. Facts in full; open hypotheses
+    by id and subject only."""
+    entries = {}
+    for ln in lane_names(root) + ["shared"]:
+        entries.update(materialize(read_jsonl(board_path(root, ln)))[0])
+    out, seen_pages = [], set()
+    for c in t.get("context", []):
+        e = entries.get(c)
+        if e is not None:
+            if e.get("kind") == "hypothesis" and e.get("status", "open") == "open":
+                out.append(f"{c} [hypothesis — UNDER TEST, do not assume it; report what you observe] {e.get('subject', '')}")
+            else:
+                out.append(fmt_entry(e, "full"))
+        elif (kb_dir(root) / f"{c}.md").exists():
+            seen_pages.add(c)
+            out.append(fmt_page(kb_load(kb_dir(root) / f"{c}.md")))
+    spec_text = " ".join(str(t.get(k, "")) for k in ("title", "objective", "instructions", "deliverable")) + " " + " ".join(t.get("resources", []))
+    for p in kb_matching(root, spec_text):
+        if p["slug"] not in seen_pages:
+            out.append(fmt_page(p))
+    if not out:
+        return ""
+    return ("\n== Context pushed to this task (established facts and pages; anything marked UNDER TEST is a guess, "
+            "not a result) ==\n" + "\n\n".join(out) + "\n")
 
 
 def set_plan_status(root: Path, tid: str, **fields) -> dict:
@@ -914,6 +1042,7 @@ def cmd_task(args):
         (td / "notes.md").touch()
         worklog(root, lane, "task-start", who, task=tid, attempt=t.get("attempt", 1))
         print(json.dumps(t, indent=1))
+        print(task_context(root, t), end="")
         prev = sorted(td.glob("review-*.json"))
         if (td / "result.json").exists() or prev:
             print(f"\nNOTE: earlier attempt exists in {td} — read result.json, review-*.json, notes.md first.")
@@ -995,14 +1124,22 @@ def cmd_task(args):
     elif c == "review":
         if args.verdict not in VERDICTS:
             die(f"--verdict must be one of {sorted(VERDICTS)}")
+        if args.correction and args.verdict != "accept":
+            die("--correction goes with --verdict accept: the deliverable stands, these details were wrong and you "
+                "state the right ones; use --objection with revise/redo")
         n = len(list(td.glob("review-*.json"))) + 1
         rev = {"id": tid, "n": n, "verdict": args.verdict, "summary": args.summary,
-               "objections": args.objection or [], "by": who, "ts": now(), "round": current_round(root)}
+               "objections": args.objection or [], "corrections": args.correction or [],
+               "by": who, "ts": now(), "round": current_round(root)}
         write_json(td / f"review-{n}.json", rev)
         if args.verdict == "redo":
             set_plan_status(root, tid, status="needs_redo")
-        worklog(root, lane, "task-review", who, task=tid, verdict=args.verdict, summary=args.summary)
-        print(f"review-{n} {args.verdict}")
+        worklog(root, lane, "task-review", who, task=tid, verdict=args.verdict, summary=args.summary,
+                **({"corrections": len(args.correction)} if args.correction else {}))
+        print(f"review-{n} {args.verdict}" + (f" with {len(args.correction)} correction(s)" if args.correction else ""))
+        if args.correction:
+            print("Now put each correction on the entry it fixes: amend --id B-... --note \"correction: ...\" "
+                  "(and --set confidence=... if the error changes it), so readers of the board see it.")
 
 
 def leftovers_for(td: Path) -> list[dict]:
@@ -1038,7 +1175,7 @@ def cmd_worklog(args):
 # ---------------------------------------------------------------- files, judge, segments
 
 PROTECTED = {"manifest.json", "state.json", "steering.jsonl", "plan.json", "board.jsonl", "worklog.jsonl",
-             "task.json", "result.json", "started.jsonl"}
+             "task.json", "result.json", "started.jsonl", "strategy.json", "strategy.md"}
 
 
 def cmd_write(args):
@@ -1046,8 +1183,8 @@ def cmd_write(args):
     target = (root / args.path).resolve()
     if root not in target.parents:
         die("path must be inside the investigation directory")
-    if target.name in PROTECTED or target.suffix == ".jsonl" or "bin" in target.relative_to(root).parts[:1]:
-        die(f"'{args.path}' is protocol-managed; use the matching board.py command")
+    if target.name in PROTECTED or target.suffix == ".jsonl" or target.relative_to(root).parts[:1] in (("bin",), ("kb",)):
+        die(f"'{args.path}' is protocol-managed; use the matching board.py command (kb pages: `kb save`)")
     target.parent.mkdir(parents=True, exist_ok=True)
     data = sys.stdin.read()
     with open(target, "a" if args.append else "w") as f:
@@ -1066,6 +1203,17 @@ def cmd_judge(args):
         for k in ("met", "progress", "gaps", "summary"):
             if k not in verdict:
                 die(f"judge verdict missing '{k}'")
+        if verdict["met"]:
+            # x0: judges said `met` with a rival explanation still open on a lane board 4 times in 6 even when the
+            # digest listed it. The rule lives here, not in the prompt.
+            rivals = uncited_open(root, RIVAL_KINDS)
+            if rivals:
+                die("refusing met=true: these open explanations / contradictions are cited by no shared entry, so no "
+                    "criterion about rival explanations is met:\n  "
+                    + "\n  ".join(f"{e['id']} [{e['kind']}] {e['subject']}  (lane {e['lane']})" for e in rivals)
+                    + "\nEither save met=false naming them in gaps, or — if the shared board already rules one out — "
+                    "amend that shared entry's refs to cite it; a rival that is plainly not one may be closed with "
+                    "`amend --id ID --set status=irrelevant --note \"why\"` (recorded under your name).")
         verdict.update({"round": args.round, "ts": now(), "by": author(args)})
         write_json(root / "judge" / f"round-{args.round:02d}.json", verdict)
         spath = root / "state.json"
@@ -1110,14 +1258,33 @@ def cmd_judge(args):
 BOARD_ID_RE = re.compile(r"B-[a-z][a-z0-9_]*-\d{4}")
 
 
+def shared_citations(root: Path) -> tuple[dict, set, set]:
+    """Live shared entries, superseded ids, and every board id a live shared entry cites."""
+    shared, sup = materialize(read_jsonl(board_path(root, "shared")))
+    cited = set()
+    for sid, e in shared.items():
+        if sid in sup:
+            continue
+        cited.update(set(BOARD_ID_RE.findall(" ".join(e.get("refs", [])) + " " + e.get("body", ""))) - {sid})
+    return shared, sup, cited
+
+
+def uncited_open(root: Path, kinds: set[str]) -> list[dict]:
+    """Open lane entries of these kinds that no live shared entry cites: raised, never confirmed or ruled out."""
+    _, sup, cited = shared_citations(root)
+    out = []
+    for lane in lane_names(root):
+        entries, lane_sup = materialize(read_jsonl(board_path(root, lane)))
+        out += [e for bid, e in entries.items() if e.get("kind") in kinds and e.get("status", "open") == "open"
+                and bid not in cited and bid not in sup and bid not in lane_sup]
+    return out
+
+
 def cmd_digest(args):
     """Facts a judge or refuter would otherwise have to dig for (and, measured, does not): whether the work behind
     each shared entry was accepted by its challenger, and what is still open on lane boards but absent from shared."""
     root = inv_root(args)
     shared, sup = materialize(read_jsonl(board_path(root, "shared")))
-    lane_entries = {}
-    for lane in lane_names(root):
-        lane_entries.update(materialize(read_jsonl(board_path(root, lane)))[0])
     plan_status = all_task_ids(root)                # a `redo` review shows here as needs_redo
     produced = {}                                   # board id -> (task id, task status, last review)
     for res in sorted(root.glob("lanes/*/tasks/*/result.json")):
@@ -1126,30 +1293,145 @@ def cmd_digest(args):
         for bid in r.get("board_ids", []):
             produced[bid] = (r["id"], plan_status.get(r["id"], r.get("status")), load_json(reviews[-1]) if reviews else None)
     print("Review status of the work behind each shared entry:")
-    cited_anywhere, shown = set(), False
+    shown = False
     for sid, e in shared.items():
         if sid in sup:
             continue
         cited = sorted(set(BOARD_ID_RE.findall(" ".join(e.get("refs", [])) + " " + e.get("body", ""))) - {sid})
-        cited_anywhere.update(cited)
         if e.get("status") in ("refuted", "irrelevant"):
             print(f"  {sid} is marked {e['status']}.")
             shown = True
         for c in cited:
             if c in produced:
                 tid, status, last = produced[c]
-                rv = f"last review: {last['verdict']} — {last['summary'][:140]}" if last else "never reviewed"
+                rv = (f"last review: {last['verdict']}" + (f" (with corrections)" if last.get("corrections") else "")
+                      + f" — {last['summary'][:140]}") if last else "never reviewed"
                 print(f"  {sid} cites {c}, from task {tid} ({status}); {rv}")
                 shown = True
     if not shown:
         print("  (no shared entry cites reviewed task output)")
-    loose = [e for bid, e in lane_entries.items() if e.get("kind") in ("hypothesis", "question", "contradiction")
-             and e.get("status", "open") == "open" and bid not in cited_anywhere and bid not in sup]
+    loose = uncited_open(root, RIVAL_KINDS | {"question"})
     print("Open hypotheses, questions and contradictions on lane boards that no shared entry cites:")
     for e in loose:
         print(f"  {e['id']} [{e['kind']}/{e.get('confidence', '-')}] {e['subject']}  (lane {e['lane']})")
     if not loose:
         print("  (none)")
+
+
+# ---------------------------------------------------------------- strategy
+
+def strategy_path(root: Path) -> Path:
+    return root / "shared" / "strategy.json"
+
+
+def board_marks(root: Path) -> dict:
+    """How far each board had grown: entry count per lane (amendments excluded), plus the latest judge round."""
+    marks = {ln: sum(1 for r in read_jsonl(board_path(root, ln)) if r.get("op") != "amend")
+             for ln in lane_names(root) + ["shared"]}
+    files = sorted((root / "judge").glob("round-*.json"))
+    marks["judge_round"] = int(files[-1].stem.split("-")[1]) if files else 0
+    return marks
+
+
+def render_strategy(s: dict) -> str:
+    """The position as planners receive it — intent, not orders (x2: equal to detailed orders on method and wasted
+    work; the planner designs the experiment). The judge's raw gap list is not repeated."""
+    hy = "\n".join(f"- **{h['name']}** — {h['status']}" + (f" (based on {', '.join(h.get('based_on', []))})" if h.get("based_on") else "")
+                   + f": {h.get('reason', '')}" for h in s["hypotheses"])
+    settle = "\n".join(f"- {x}" for x in s.get("settle", [])) or "- (none stated)"
+    out = [f"# Strategy v{s['version']} (round {s['round']}, {s['by']})", "",
+           "## Hypotheses and their status", hy, "",
+           "## What this round must settle — observations whose outcome differs between the live hypotheses", settle, "",
+           "## Not pursuing", s.get("not_pursuing", "") or "(nothing excluded)", ""]
+    if s.get("change") and s["change"] != "none":
+        out += [f"## Changed since v{s['version'] - 1}", f"{s['change']}  (evidence: {', '.join(s.get('cites', []))})", ""]
+    elif s["version"] > 1:
+        out += ["## Changed since the last position", "none", ""]
+    out += ["Design your lane's tasks so their results settle the above; you choose the experiments. Hypotheses here are",
+            "under test, not facts: put the established entries a worker needs into each task's `context`.", ""]
+    return "\n".join(out)
+
+
+def cmd_strategy(args):
+    root = inv_root(args)
+    spath = strategy_path(root)
+    if args.strategy_cmd == "show":
+        cur = load_json(spath)
+        if not cur:
+            print("(no strategy yet)")
+            return
+        print(json.dumps(cur, indent=1) if args.format == "json" else (root / "shared" / "strategy.md").read_text())
+        return
+    if args.strategy_cmd == "delta":
+        cur = load_json(spath)
+        if not cur:
+            print("(no strategy yet — everything on the boards is new to the strategist)")
+            return
+        marks, then = board_marks(root), cur.get("marks", {})
+        print(f"Since strategy v{cur['version']} (round {cur['round']}):")
+        any_new = False
+        for ln in lane_names(root) + ["shared"]:
+            entries, sup = materialize(read_jsonl(board_path(root, ln)))
+            new = [e for i, e in enumerate(entries.values()) if i >= then.get(ln, 0) and e["id"] not in sup]
+            for e in new:
+                any_new = True
+                print("  " + fmt_entry(e, "brief"))
+        if marks["judge_round"] > then.get("judge_round", 0):
+            any_new = True
+            v = load_json(root / "judge" / f"round-{marks['judge_round']:02d}.json")
+            print(f"  judge r{v['round']}: met={v.get('met')} progress={v.get('progress')} gaps={v.get('gaps')}"
+                  + (f"  REFUTED: {v['refuted'].get('objections')}" if v.get("refuted") else ""))
+        if not any_new:
+            print("  (no new entries or verdicts)")
+        return
+
+    # save
+    raw = open(args.file).read() if args.file else sys.stdin.read()
+    try:
+        s = json.loads(raw)
+    except json.JSONDecodeError as e:
+        die(f"strategy JSON invalid: {e}")
+    hy = s.get("hypotheses")
+    if not isinstance(hy, list) or not hy:
+        die("strategy needs 'hypotheses': [{name, status, reason, based_on:[ids]}] — every explanation in play, "
+            "including lane notes and open questions")
+    for h in hy:
+        for k in ("name", "status", "reason"):
+            if not h.get(k):
+                die(f"hypothesis {h.get('name', '?')}: missing '{k}'")
+        if h["status"] not in STRATEGY_STATUSES:
+            die(f"hypothesis {h['name']}: status must be one of {sorted(STRATEGY_STATUSES)}")
+    live = [h for h in hy if h["status"] in ("leading", "live")]
+    others = [h for h in hy if h not in live]
+    if len(live) < 2 and not (others and all(h["status"] == "refuted" for h in others)):
+        die("keep at least two hypotheses live (leading or live) unless the boards refute every other one: a single "
+            "live hypothesis converges every lane on it. Promote the strongest alternative to live, or mark the "
+            "rest refuted with the entry ids that refute them.")
+    if not isinstance(s.get("settle", []), list):
+        die("'settle' must be a list of observations whose outcome differs between the live hypotheses")
+    old = load_json(spath)
+    version = (old["version"] + 1) if old else 1
+    if old:
+        before = {h["name"]: h["status"] for h in old["hypotheses"]}
+        moved = [h["name"] for h in hy if before.get(h["name"]) not in (None, h["status"])]
+        if moved and not s.get("cites"):
+            die(f"status changed for {', '.join(moved)} but 'cites' names no new evidence ids. A strategy that moves "
+                f"without new evidence makes planners drop queued work; cite the entries that justify the change, "
+                f"or keep the previous statuses and set change='none'.")
+        if not moved and s.get("change", "none") != "none" and not s.get("cites"):
+            die("'change' is not 'none' but no hypothesis status moved and 'cites' is empty — say 'none'")
+    rec = {"version": version, "round": args.round, "ts": now(), "by": author(args), "hypotheses": hy,
+           "settle": s.get("settle", []), "not_pursuing": s.get("not_pursuing", ""),
+           "change": s.get("change", "none") if old else "initial", "cites": s.get("cites", []),
+           "summary": s.get("summary", ""), "marks": board_marks(root)}
+    (root / "shared").mkdir(exist_ok=True)
+    with locked(spath):
+        if old:
+            (root / "shared" / "archive").mkdir(exist_ok=True)
+            write_json(root / "shared" / "archive" / f"strategy.v{old['version']:03d}.json", old)
+        write_json(spath, rec)
+        (root / "shared" / "strategy.md").write_text(render_strategy(rec))
+    print(f"strategy v{version} saved (round {args.round}); shared/strategy.md is pushed into every scope and plan brief")
 
 
 # ---------------------------------------------------------------- brief
@@ -1167,6 +1449,10 @@ BRIEF_STATE = {
     "synthesizer": lambda a: [["query", "--lane", "all"] + (["--round", str(a.round)] if a.round else [])],
     "judge": lambda a: [["judge", "show"], ["steer", "list"], ["query", "--lane", "shared", "--format", "full"], ["digest"]],
     "refuter": lambda a: [["judge", "show"], ["query", "--lane", "shared", "--format", "full"], ["digest"]],
+    # x3: the measured brief — boards, verdicts, synthesis and the digest; never the targets
+    "strategist": lambda a: [["status"], ["judge", "show"], ["steer", "list"], ["strategy", "show"], ["strategy", "delta"],
+                             ["query", "--lane", "shared", "--format", "full"],
+                             ["query", "--lane", "all", "--format", "brief", "--limit", "60"], ["digest"], ["questions"]],
     "checkpoint": lambda a: [["status"], ["questions"], ["leftovers"]],
 }
 
@@ -1213,11 +1499,21 @@ def cmd_brief(args):
         brief = root / "lanes" / args.lane / "scope" / f"round-{args.round:02d}.md"
         sections.append((f"Scope brief (round {args.round})",
                          brief.read_text() if brief.exists() else "(no scope brief for this round)"))
+    strategy_md = root / "shared" / "strategy.md"
+    has_strategy = strategy_md.exists() and load_json(strategy_path(root)) is not None
+    if role in ("scope", "plan") and has_strategy:
+        # x2: the position is the channel; planners who saw the judge's raw gaps queued the wasted task 3/3
+        sections.append(("Strategist's intent for this round", strategy_md.read_text()))
+    if role == "strategist":
+        syn = root / "shared" / "synthesis.md"
+        sections.append(("shared/synthesis.md", syn.read_text() if syn.exists() else "(no synthesis yet)"))
     for s in sections:
         print(f"\n{'=' * 8} {s[0]} {'=' * 8}\n{s[1].strip()}\n")
     calls = BRIEF_STATE.get(role, lambda a: [])(args)
     if role in ("scope", "plan") and not args.lane:
         calls = []
+    if role == "scope" and has_strategy:
+        calls = [c for c in calls if c[:2] != ["judge", "show"]]
     for argv in calls:
         print(f"\n{'=' * 8} state: board.py {' '.join(argv)} {'=' * 8}")
         sub = build_parser().parse_args(argv + ["--inv", str(root)])
@@ -1310,6 +1606,7 @@ def cmd_wf_args(args):
         "models": {k: v for k, v in (m.get("models") or {}).items() if v},
         "effort": {k: v for k, v in (m.get("effort") or {}).items() if v},
         "agent_types": {} if args.no_agent_types else {k: v for k, v in (m.get("agent_types") or {}).items() if v},
+        "has_strategy": load_json(strategy_path(root)) is not None,
     }
     print(json.dumps(out, indent=1))
 
@@ -1471,6 +1768,30 @@ def build_parser() -> argparse.ArgumentParser:
     x.add_argument("--verdict", required=True)
     x.add_argument("--summary", required=True)
     x.add_argument("--objection", action="append")
+    x.add_argument("--correction", action="append",
+                   help="with accept: a detail that was wrong and its right value (the deliverable still stands)")
+
+    s = sp("kb", cmd_kb, group=True)
+    ks = s.add_subparsers(dest="kb_cmd", required=True)
+    x = ks.add_parser("save", parents=[common])
+    x.add_argument("--slug", required=True)
+    x.add_argument("--title", required=True)
+    x.add_argument("--match", help="comma-separated tokens; the page is pushed into tasks whose spec mentions one")
+    x.add_argument("--refs", help="comma-separated file:line the page rests on")
+    ks.add_parser("list", parents=[common])
+    x = ks.add_parser("show", parents=[common])
+    x.add_argument("--slug", required=True)
+    x = ks.add_parser("search", parents=[common])
+    x.add_argument("--grep", required=True)
+
+    s = sp("strategy", cmd_strategy, group=True)
+    sts = s.add_subparsers(dest="strategy_cmd", required=True)
+    x = sts.add_parser("save", parents=[common])
+    x.add_argument("--round", type=int, required=True)
+    x.add_argument("--file")
+    x = sts.add_parser("show", parents=[common])
+    x.add_argument("--format", choices=["md", "json"], default="md")
+    sts.add_parser("delta", parents=[common])
 
     s = sp("worklog", cmd_worklog)
     s.add_argument("--lane", required=True)

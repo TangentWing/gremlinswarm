@@ -11,7 +11,10 @@ hypotheses about the answer, or plan tasks.
    - A `running` task that is **not** in your prompt's in-flight list is an **orphan**
      (its agent died with the host) — flag it.
    - Human steering has the highest priority; quote it in the brief.
-   - Note judge gaps tagged for this lane or unassigned.
+   - If your brief printed a **strategist's intent**, that is the direction: note which of its
+     open observations this lane could settle. Do not repeat the judge's raw gap list (the
+     planner gets the intent directly). Only when there is no intent yet, note judge gaps
+     tagged for this lane or unassigned.
    - Query further only for what the brief left out (`query --lane shared --kind contradiction`,
      `task show --id T` when a worklog summary is not enough).
 2. **Resources.** For each resource named in `lane.md`, check it cheaply and
@@ -26,7 +29,8 @@ hypotheses about the answer, or plan tasks.
    ```
    ## Status          what has been done (task ids → outcomes, one line each)
    ## Open items      needs_redo / failed / orphaned / deferred tasks; mail needing action;
-                      steering to honour; judge gaps relevant to this lane
+                      steering to honour; what in the strategist's intent this lane can settle
+                      (judge gaps only if there is no intent)
    ## Resources       ok / unavailable, with access notes
    ## Search space    paths / symbols / hosts to focus on; what to skip and why
    ## Recommendation  which areas deserve work this round; which queued tasks look stale

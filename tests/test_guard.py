@@ -187,6 +187,49 @@ class GuardTest(unittest.TestCase):
         code, _ = self.stop("j1")
         self.assertEqual(code, 0)
 
+    # ------------------------------------------------------------ v2 slice
+
+    def strategist(self, aid):
+        self.agent(aid, prompt(self.inv, role="STRATEGIST", lane="", task="", rnd=2).replace("Task:  — t", ""))
+
+    def test_strategist_bash_is_board_only(self):
+        self.strategist("st1")
+        code, err = self.pre("st1", "Bash", {"command": f"{self.inv}/bin/board.py query --lane shared --as strategist"})
+        self.assertEqual(code, 0)
+        code, err = self.pre("st1", "Bash", {"command": "grep -n reserve /srv/target/logs/merged.log"})
+        self.assertEqual(code, 2)
+        self.assertIn("boards only", err)
+
+    def test_strategist_reads_only_inside_investigation(self):
+        self.strategist("st2")
+        code, _ = self.pre("st2", "Read", {"file_path": os.path.join(self.inv, "shared", "synthesis.md")})
+        self.assertEqual(code, 0)
+        code, err = self.pre("st2", "Read", {"file_path": os.path.join(self.tmp, "target", "gateway.py")})
+        self.assertEqual(code, 2)
+        self.assertIn("nothing outside the investigation directory", err)
+        code, _ = self.pre("st2", "Grep", {"pattern": "key", "path": self.tmp})
+        self.assertEqual(code, 2)
+
+    def test_other_roles_may_still_read_targets(self):
+        self.agent("inv9", prompt(self.inv))
+        code, _ = self.pre("inv9", "Read", {"file_path": os.path.join(self.tmp, "target", "gateway.py")})
+        self.assertEqual(code, 0)
+
+    def test_challenger_must_record_a_review(self):
+        text = prompt(self.inv, role="CHALLENGER", lane="static", task="", rnd=1).replace("Task:  — t", "") \
+            + "\n\nReview task static-r01-01 — t   (verify level: light, review 1)"
+        self.agent("ch1", text)
+        code, err = self.stop("ch1")
+        self.assertEqual(code, 2)
+        self.assertIn("task review --id static-r01-01", err)
+        self.board(["task", "review", "--id", "static-r01-01", "--verdict", "accept", "--summary", "ok", "--as", "static/challenger"])
+        code, _ = self.stop("ch1")
+        self.assertEqual(code, 0)
+        # the second review of the same round needs a second review on file
+        self.agent("ch2", text.replace("review 1)", "review 2)"))
+        code, _ = self.stop("ch2")
+        self.assertEqual(code, 2)
+
     def test_zz_finished_investigator_may_stop(self):  # runs last: finishes static-r01-01
         self.agent("s4", prompt(self.inv))
         self.board(["task", "finish", "--id", "static-r01-01", "--status", "done", "--summary", "ok"])

@@ -33,7 +33,7 @@ const PLANS = {
   2: { static: ['static-r02-01'], experiments: ['experiments-r01-02'] },
 }
 
-function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => ({ met: r >= 2, progress: true }), refute = () => false, refuterLost = () => false, failAll = false } = {}) {
+function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => ({ met: r >= 2, progress: true }), refute = () => false, refuterLost = () => false, failAll = false, synth = r => ({}), strategistLost = () => false } = {}) {
   const logs = [], trace = []
   let active = 0, maxActive = 0
   const holders = new Map()      // exclusive resource -> task id (agent-level check)
@@ -82,8 +82,9 @@ function harness({ args = BASE_ARGS, tasks = TASKS, plans = PLANS, judge = r => 
           const v = (tasks[tid].verdicts || ['accept'])[n - 1] || 'accept'
           return { verdict: v, summary: `review ${n}: ${v}` }
         }
-        case 'synthesizer': { await sleep(10); return { summary: `synth r${round}` } }
-        case 'judge': { await sleep(10); const j = judge(round); return { gaps: [], summary: `judge r${round}`, ...j } }
+        case 'synthesizer': { await sleep(10); return { summary: `synth r${round}`, ...synth(round) } }
+        case 'strategist': { await sleep(10); if (strategistLost(round)) return null; return { summary: `strategy after r${round}`, change: round === 1 ? 'initial' : 'none' } }
+        case 'judge': { await sleep(10); const j = judge(round); if (j === null) return null; return { gaps: [], summary: `judge r${round}`, ...j } }
         case 'refuter': { await sleep(10); const att = (refuteAttempts[round] = (refuteAttempts[round] || 0) + 1); if (refuterLost(round, att)) return null; const r = refute(round); return { upheld: !r, objections: r ? ['criterion 2 unverified'] : [], summary: `refuter r${round}` } }
         case 'checkpoint': { await sleep(5); return { report_path: 'report.md', summary: 'checkpoint', open_questions: 0 } }
       }
@@ -151,6 +152,48 @@ await test('idle lanes skip planning', () => {
 await test('checkpoint runs after draining long tasks', () => {
   const cp = starts(full.trace, e => e.role === 'checkpoint')[0], e1 = window(full.trace, 'experiments-r01-01')
   assert.ok(cp && cp.at >= e1[1])
+})
+
+console.log('== scenario: strategist wake rule')
+await test('strategist runs after the judge when no strategy exists, then is skipped on a quiet round', () => {
+  // full: round 1 (no strategy yet) → strategist; round 2 met → stop before any strategist
+  const st = starts(full.trace, e => e.role === 'strategist')
+  assert.deepEqual(st.map(e => e.round), [1])
+  const judge1 = window(full.trace, 'r1 judge'), s1 = window(full.trace, 'r1 strategy')
+  assert.ok(s1 && s1[0] >= judge1[1], 'strategist starts after the judge')
+  assert.equal(full.result.rounds[0].strategy.change, 'initial')
+})
+const quiet = await harness({ args: { ...BASE_ARGS, has_strategy: true, budget: { ...BASE_ARGS.budget, rounds_per_checkpoint: 1 } },
+                              judge: () => ({ met: false, progress: true }) })
+await test('a quiet round (progress, no board change, strategy exists) skips the strategist', () => {
+  assert.equal(starts(quiet.trace, e => e.role === 'strategist').length, 0)
+  assert.ok(quiet.logs.some(l => /strategist skipped/.test(l)))
+})
+const moved = await harness({ args: { ...BASE_ARGS, has_strategy: true, budget: { ...BASE_ARGS.budget, rounds_per_checkpoint: 1 } },
+                              judge: () => ({ met: false, progress: true }), synth: () => ({ promoted: 2 }) })
+await test('a synthesizer that promoted entries wakes the strategist', () => {
+  const st = starts(moved.trace, e => e.role === 'strategist')
+  assert.equal(st.length, 1); assert.match(st[0].prompt, /changed the shared board/)
+})
+const refutedRun = await harness({ args: { ...BASE_ARGS, has_strategy: true, budget: { ...BASE_ARGS.budget, rounds_per_checkpoint: 1 } },
+                                   judge: () => ({ met: true, progress: true }), refute: () => true })
+await test('a refuted met verdict wakes the strategist', () => {
+  const st = starts(refutedRun.trace, e => e.role === 'strategist')
+  assert.equal(st.length, 1); assert.match(st[0].prompt, /refuted/)
+})
+await test('a lost strategist is logged and the round still completes', async () => {
+  const lost = await harness({ args: { ...BASE_ARGS, budget: { ...BASE_ARGS.budget, rounds_per_checkpoint: 1 } },
+                               judge: () => ({ met: false, progress: true }), strategistLost: () => true })
+  assert.equal(lost.result.rounds.length, 1); assert.equal(lost.result.rounds[0].strategy, null)
+  assert.ok(lost.logs.some(l => /strategist returned nothing/.test(l)))
+})
+await test('the round after a lost judge tells the next judge', async () => {
+  let n = 0
+  const lj = await harness({ args: { ...BASE_ARGS, has_strategy: true, budget: { ...BASE_ARGS.budget, rounds_per_checkpoint: 2, stall_rounds: 3 } },
+                             judge: () => (++n === 1 ? null : { met: false, progress: true }) })
+  const j2 = starts(lj.trace, e => e.role === 'judge' && e.round === 2)[0]
+  assert.match(j2.prompt, /previous round's judge returned no verdict/)
+  assert.equal(starts(lj.trace, e => e.role === 'strategist' && e.round === 1).length, 1, 'a lost judge wakes the strategist')
 })
 
 console.log('== scenario: stall')

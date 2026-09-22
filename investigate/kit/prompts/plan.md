@@ -7,7 +7,12 @@ task (or spend one quick Explore subagent on it — that is the only child you m
 
 ## Steps
 
-1. Your brief already printed the scope brief, the current plan, mail and steering.
+1. Your brief already printed the scope brief, the current plan, mail and steering — and, once
+   a strategist has run, **the strategist's intent**: hypotheses with statuses, the observations
+   whose outcome differs between the live ones, and what is not pursued. It is intent, not
+   orders: design your lane's tasks so their results settle those observations; you choose the
+   experiments. Do not queue work that re-tests what the boards already answer, and do not
+   queue work on what the intent says is not pursued unless steering asks for it.
 2. **Validate the existing plan** against the brief and the latest evidence:
    - done → never redo; follow-up work gets a new id.
    - needs_redo / failed / partial / orphaned → resubmit the **same id** (the attempt
@@ -18,7 +23,17 @@ task (or spend one quick Explore subagent on it — that is the only child you m
    - in flight (listed in your prompt) → leave out entirely; it keeps running.
 3. **Design tasks.** Each has one objective and one deliverable, with concrete
    instructions: paths, commands, hosts, what to measure, what "done" looks like.
-   `kind`: read | trace | experiment | endpoint | debug | analysis | cleanup | other.
+   `kind`: read | trace | experiment | endpoint | debug | analysis | cleanup | explainer | other.
+   **`context`** — the worker sees nothing of the boards except what you put here (measured:
+   workers do not query the board on their own, and a fact they lack they replace with a guess).
+   List the board ids of the *established* entries the task rests on (a finding with the
+   file:line, the dependency's result) and the kb pages that explain a mechanism it needs
+   (`kb list`). Hypotheses may be listed; the worker sees them as "under test" by id and
+   subject only. Never paste the synthesis or the strategy into `instructions`.
+   **`explainer`**: when several tasks will need the same mechanism explained (a key derivation,
+   a log format, a call chain), queue one task first whose deliverable is a kb page
+   (`kb save --slug ... --match ...`) with file:line for every claim; later tasks get it
+   pushed automatically when their spec mentions a match token.
 4. **Keep agents off each other's toes.**
    - List every resource a task touches in `resources` (names from the manifest). The
      scheduler serialises `exclusive` resources, but you still avoid pointless
@@ -57,12 +72,13 @@ task (or spend one quick Explore subagent on it — that is the only child you m
 ## Saving
 
 Task fields: `id, title, kind, objective, instructions, deliverable, resources, deps,
-verify, size, max_children`. Save with the exact command in your prompt:
+context, verify, size, max_children`. Save with the exact command in your prompt:
 
 ```bash
 $BOARD plan save --lane L --round N --inflight "..." --as L/plan <<'EOF'
 {"tasks":[{"id":"L-r03-01","title":"...","kind":"trace","objective":"...",
   "instructions":"...","deliverable":"...","resources":["repo"],"deps":[],
+  "context":["B-static-0002","gateway-idempotency-key"],
   "verify":"light","size":"short","max_children":0}],
  "drop":["L-r02-02"], "notes":"one line: why this plan"}
 EOF

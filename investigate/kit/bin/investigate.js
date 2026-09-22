@@ -7,6 +7,7 @@ export const meta = {
     { title: 'Investigate', detail: 'task chains under the global pool: investigator, challenger, revise, salvage' },
     { title: 'Synthesize', detail: 'dedupe, contradictions, promote to the shared board' },
     { title: 'Judge', detail: 'criteria vs shared board; a met verdict must survive a refuter' },
+    { title: 'Strategy', detail: 'one sceptic strategist, boards only, when the round changed something' },
     { title: 'Checkpoint', detail: 'drain long tasks, clean leftovers, write the report' },
   ],
 }
@@ -23,7 +24,7 @@ const BOARD = A.board
 const B = A.budget
 const LANES = A.lanes
 const EXCL = new Set(A.exclusive || [])
-const RESERVE = 4 // synthesize + judge + refuter + checkpoint are always affordable
+const RESERVE = 5 // synthesize + judge + refuter + strategist + checkpoint are always affordable
 const SWEEP_CAP = B.max_sweep_items ?? 12
 const pad = n => String(n).padStart(2, '0')
 
@@ -78,6 +79,10 @@ const JUDGE = {
 const REFUTE = {
   type: 'object', required: ['upheld', 'summary'],
   properties: { upheld: { type: 'boolean' }, objections: strs, summary: str(800) },
+}
+const STRATEGY = {
+  type: 'object', required: ['summary', 'change'],
+  properties: { summary: str(800), change: str(600) },
 }
 const CHECKPOINT = {
   type: 'object', required: ['report_path', 'summary'],
@@ -215,10 +220,19 @@ const synthPrompt = (round, results) => [
   `Tasks finished since the last synthesis: ${results.map(r => `${r.id}=${r.status}`).join(', ') || 'none'}`,
 ].join('\n\n')
 
-const judgePrompt = (round, stall) => [
+const judgePrompt = (round, stall, prevLost) => [
   header('judge', round, 'judge', null),
   `Rounds without progress so far: ${stall} (stop threshold ${B.stall_rounds}).`,
+  prevLost ? `The previous round's judge returned no verdict (it ran out of turns); nothing was saved for round ${round - 1}. Decide from the board as it stands now.` : '',
   `Save with: ${BOARD} judge save --round ${round} --as judge <<'EOF' {"met":..,"progress":..,"gaps":[..],"summary":".."} EOF`,
+].filter(Boolean).join('\n\n')
+
+// x3: one sceptic-framed strategist, boards only; its position reaches planners as intent (x2).
+const strategistPrompt = (round, why) => [
+  header('strategist', round, 'strategist', null),
+  `Round ${round} has been judged; you set the direction for round ${round + 1}. Why you were woken: ${why}.`,
+  `Save with: ${BOARD} strategy save --round ${round + 1} --as strategist <<'EOF' {"hypotheses":[..],"settle":[..],"not_pursuing":"..","change":"none|..","cites":[..],"summary":".."} EOF`,
+  `Return {summary, change}.`,
 ].join('\n\n')
 
 const checkpointPrompt = (first, last, reason, extra) => [
@@ -403,6 +417,8 @@ const rounds = []
 let reason = 'checkpoint'
 let stall = 0
 let round = first
+let prevJudgeLost = false
+let hasStrategy = !!A.has_strategy
 
 if (first > B.max_rounds) {
   reason = 'max_rounds'
@@ -435,8 +451,9 @@ for (; round <= last && reason === 'checkpoint'; round++) {
   const synth = await run(synthPrompt(round, results),
     opts('synthesizer', { label: `r${round} synthesize`, phase: 'Synthesize', schema: SYNTH }))
   if (synth) log(`synthesis: ${synth.summary.slice(0, 200)}`)
-  const verdict = await run(judgePrompt(round, stall),
+  const verdict = await run(judgePrompt(round, stall, prevJudgeLost),
     opts('judge', { label: `r${round} judge`, phase: 'Judge', schema: JUDGE }))
+  prevJudgeLost = !verdict
 
   rounds.push({
     round,
@@ -445,6 +462,7 @@ for (; round <= last && reason === 'checkpoint'; round++) {
     synthesis: synth ? synth.summary : null,
     judge: verdict,
   })
+  let refuted = false
   if (!verdict) { log(`Round ${round}: judge lost — counting as no progress.`); stall++ }
   else {
     log(`Round ${round} judge: met=${verdict.met} progress=${verdict.progress} — ${verdict.summary.slice(0, 200)}`)
@@ -464,6 +482,7 @@ for (; round <= last && reason === 'checkpoint'; round++) {
       if (check.upheld) { reason = 'met'; break }
       log(`Round ${round}: met verdict refuted — ${(check.objections || []).join('; ').slice(0, 300)}`)
       verdict.met = false
+      refuted = true
     }
     stall = verdict.progress ? 0 : stall + 1
   }
@@ -471,6 +490,21 @@ for (; round <= last && reason === 'checkpoint'; round++) {
   if (round >= B.max_rounds) { reason = 'max_rounds'; break }
   if (capHit) { reason = 'agent_cap'; log('Agent cap reached during the round; checkpointing.'); break }
   if (tokenStop) { reason = 'token_budget'; break }
+
+  // Strategist: wakes on signals the script already has, never on its own say-so (a gate agent would cost the same).
+  const changed = synth && ['merged', 'promoted', 'contradictions', 'flagged', 'escalations'].some(k => (synth[k] || 0) > 0)
+  const why = !hasStrategy ? 'no strategy exists yet'
+    : !verdict ? 'the judge returned no verdict'
+      : refuted ? 'the met verdict was refuted'
+        : !verdict.progress ? 'the judge saw no progress'
+          : changed ? 'the synthesizer changed the shared board'
+            : null
+  if (why) {
+    const pos = await run(strategistPrompt(round, why), opts('strategist', { label: `r${round} strategy`, phase: 'Strategy', schema: STRATEGY }))
+    rounds[rounds.length - 1].strategy = pos
+    if (pos) { hasStrategy = true; log(`strategy: ${pos.change === 'none' ? 'no change' : pos.change.slice(0, 160)} — ${pos.summary.slice(0, 160)}`) }
+    else log(`Round ${round}: strategist returned nothing; planners keep the previous position${hasStrategy ? '' : ' (none)'}.`)
+  } else log(`Round ${round}: quiet round (progress, no board change) — strategist skipped.`)
 }
 const lastRound = rounds.length ? rounds[rounds.length - 1].round : first - 1
 
